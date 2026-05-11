@@ -1,5 +1,4 @@
-﻿
-// AutoMoveDlg.cpp: 구현 파일
+﻿// AutoMoveDlg.cpp: 구현 파일
 //
 
 #include "pch.h"
@@ -48,10 +47,10 @@ END_MESSAGE_MAP()
 
 // CAutoMoveDlg 대화 상자
 
-
-
 CAutoMoveDlg::CAutoMoveDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_AUTOMOVE_DIALOG, pParent)
+	, m_pScrollView(nullptr)
+	, m_pSystemDlg(nullptr)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -65,6 +64,10 @@ BEGIN_MESSAGE_MAP(CAutoMoveDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_BN_CLICKED(IDC_BT_MAIN_EXIT, &CAutoMoveDlg::OnBnClickedMainExit)
+	ON_WM_SIZE()
+	ON_WM_GETMINMAXINFO()
+	ON_BN_CLICKED(IDC_BT_SYSTEM_OPEN, &CAutoMoveDlg::OnBnClickedBtSystemOpen)
 END_MESSAGE_MAP()
 
 
@@ -100,6 +103,28 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+	EnableDynamicLayout(TRUE);
+	
+	m_pSystemDlg = new CSystemDlg(this);
+
+	// 1. Picture Control(IDC_STATIC_LIST_ITEM) 영역 좌표 가져오기
+	CRect rect;
+	CWnd* pWndPos = GetDlgItem(IDC_STATIC_LIST_ITEM);
+	pWndPos->GetWindowRect(&rect);
+	ScreenToClient(&rect);
+	pWndPos->ShowWindow(SW_HIDE); // 가이드용 컨트롤은 숨김
+
+	// 2. 스크롤뷰 동적 생성
+	m_pScrollView = new CListScrollView();
+
+	// 3. WS_VSCROLL 스타일을 추가하여 내장 수직 스크롤바 활성화
+	if (!m_pScrollView->Create(NULL, NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER,
+		rect, this, 50001)) {
+		return FALSE;
+	}
+
+	m_pScrollView->OnInitialUpdate();
+	m_pScrollView->AddItem();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -110,6 +135,11 @@ void CAutoMoveDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	{
 		CAboutDlg dlgAbout;
 		dlgAbout.DoModal();
+	}
+	else if ((nID & 0xFFF0) == SC_CLOSE)
+	{
+		// 우측 상단 닫기 버튼을 누르면 최소화
+		ShowWindow(SW_MINIMIZE);
 	}
 	else
 	{
@@ -153,3 +183,81 @@ HCURSOR CAutoMoveDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CAutoMoveDlg::OnBnClickedMainExit()
+{
+	int ret = MessageBox(_T("프로그램을 종료하시겠습니까?"), _T("종료 확인"), MB_YESNO | MB_ICONQUESTION);
+	if (ret == IDYES)
+	{
+		EndDialog(IDOK);
+	}
+}
+
+
+void CAutoMoveDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
+{
+	// 예: 창 크기를 800x600으로 완전히 고정하고 싶을 때
+	lpMMI->ptMinTrackSize.x = 600; // 최소 가로
+	lpMMI->ptMinTrackSize.y = 400; // 최소 세로
+	lpMMI->ptMaxTrackSize.x = 600; // 최대 가로
+	lpMMI->ptMaxTrackSize.y = 400; // 최대 세로
+
+	CDialogEx::OnGetMinMaxInfo(lpMMI);
+}
+
+void CAutoMoveDlg::AlignControls()
+{
+	CRect rectClient;
+	GetClientRect(&rectClient);
+	int cx = rectClient.Width();
+
+	// 1. 컨트롤 가져오기
+	CWnd* pBtnClose = GetDlgItem(IDC_BT_MAIN_EXIT);    // 가장 우측 버튼 (1번)
+	CWnd* pBtnSystem = GetDlgItem(IDC_BT_SYSTEM_OPEN); // 그 옆의 버튼 (2번)
+	CWnd* pPic = GetDlgItem(IDC_STATIC_LIST_ITEM);
+
+	const int RIGHT_MARGIN = 10; // 우측 끝단 마진
+	const int ELEMENT_GAP = 10;  // 버튼 사이의 간격 (동일 마진 적용)
+
+	// 2. 가장 우측 버튼(Close) 정렬
+	int firstBtnX = 0; // 두 번째 버튼의 기준점이 될 좌표
+	if (pBtnClose && pBtnClose->GetSafeHwnd()) {
+		CRect r;
+		pBtnClose->GetWindowRect(&r);
+		ScreenToClient(&r);
+
+		// 우측 끝에서 마진만큼 띄움
+		firstBtnX = cx - r.Width() - RIGHT_MARGIN;
+		pBtnClose->MoveWindow(firstBtnX, r.top, r.Width(), r.Height());
+	}
+
+	// 3. 두 번째 버튼(System) 정렬 - 동일 마진 적용
+	if (pBtnSystem && pBtnSystem->GetSafeHwnd()) {
+		CRect r;
+		pBtnSystem->GetWindowRect(&r);
+		ScreenToClient(&r);
+
+		// 첫 번째 버튼의 시작점(firstBtnX)에서 간격과 자신의 너비를 뺌
+		int secondBtnX = firstBtnX - r.Width() - ELEMENT_GAP;
+		pBtnSystem->MoveWindow(secondBtnX, r.top, r.Width(), r.Height());
+	}
+
+	// 4. Picture Control 및 스크롤뷰 영역 업데이트
+	if (pPic && pPic->GetSafeHwnd()) {
+		CRect rPic;
+		pPic->GetWindowRect(&rPic);
+		ScreenToClient(&rPic);
+
+		// 우측 끝 마진에 맞게 너비 조절
+		int newPicWidth = cx - rPic.left - RIGHT_MARGIN;
+		pPic->MoveWindow(rPic.left, rPic.top, newPicWidth, rPic.Height());
+
+		if (m_pScrollView && m_pScrollView->GetSafeHwnd()) {
+			m_pScrollView->MoveWindow(rPic.left, rPic.top, newPicWidth, rPic.Height());
+		}
+	}
+}
+
+void CAutoMoveDlg::OnBnClickedBtSystemOpen()
+{
+	m_pSystemDlg->DoModal();
+}
