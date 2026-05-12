@@ -45,8 +45,11 @@
     <ClInclude Include="CPathItem.h">
       <Filter>Dialog</Filter>
     </ClInclude>
-    <ClInclude Include="CSystemDlg.h">
+    <ClInclude Include="CSetupDlg.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CSetupItem.h">
+      <Filter>Dialog</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -68,8 +71,11 @@
     <ClCompile Include="CPathItem.cpp">
       <Filter>Dialog</Filter>
     </ClCompile>
-    <ClCompile Include="CSystemDlg.cpp">
+    <ClCompile Include="CSetupDlg.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CSetupItem.cpp">
+      <Filter>Dialog</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

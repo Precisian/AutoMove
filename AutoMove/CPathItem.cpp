@@ -36,7 +36,13 @@ END_MESSAGE_MAP()
 BOOL CPathItem::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
 	// 현재 아이템에서 마우스 휠 이벤트 부모에게 전달
-	return GetParent()->SendMessage(WM_MOUSEWHEEL, MAKEWPARAM(nFlags, zDelta), MAKELPARAM(pt.x, pt.y));
+	CWnd* pParent = GetParent();
+	if (pParent == nullptr)
+	{
+		return CDialogEx::OnMouseWheel(nFlags, zDelta, pt);
+	}
+
+	return pParent->SendMessage(WM_MOUSEWHEEL, MAKEWPARAM(nFlags, zDelta), MAKELPARAM(pt.x, pt.y)) != 0;
 }
 
 void CPathItem::OnSize(UINT nType, int cx, int cy) {
@@ -44,8 +50,8 @@ void CPathItem::OnSize(UINT nType, int cx, int cy) {
 
     if (cx <= 0) return;
 
-    CWnd* pBtn1 = GetDlgItem(IDC_BT_PATHITEM_STOP);
-    CWnd* pBtn2 = GetDlgItem(IDC_BT_PATHITEM_START);
+    CWnd* pBtn1 = GetDlgItem(IDC_BTN_PATHITEM_STOP);
+    CWnd* pBtn2 = GetDlgItem(IDC_BTN_PATHITEM_START);
     CWnd* pEdit = GetDlgItem(IDC_STATIC_PATHITEM_STATUS);
 
     if (pBtn1 && pBtn2 && pEdit && pBtn1->GetSafeHwnd()) {

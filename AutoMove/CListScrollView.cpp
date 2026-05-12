@@ -3,91 +3,236 @@
 
 IMPLEMENT_DYNCREATE(CListScrollView, CScrollView)
 
-void CListScrollView::OnInitialUpdate() {
-    CScrollView::OnInitialUpdate();
-    // 초기에는 스크롤 범위를 0으로 설정 (스크롤바가 안 보임)
-    SetScrollSizes(MM_TEXT, CSize(0, 0));
+BEGIN_MESSAGE_MAP(CListScrollView, CScrollView)
+	ON_WM_SIZE()
+	ON_MESSAGE(WM_LISTSCROLL_REMOVE_ITEM, &CListScrollView::OnRemoveItem)
+END_MESSAGE_MAP()
+
+CListScrollView::CListScrollView()
+	: m_eItemType(ITEM_PATH)
+{
 }
 
-void CListScrollView::OnDraw(CDC* pDC) {
-    // 배경을 흰색으로 칠하고 싶을 때 (선택 사항)
-    CRect rect;
-    GetClientRect(&rect);
-    pDC->FillSolidRect(rect, RGB(255, 255, 255));
+CListScrollView::CListScrollView(ITEM_TYPE eItemType)
+	: m_eItemType(eItemType)
+{
 }
 
-void CListScrollView::OnSize(UINT nType, int cx, int cy) {
-    CScrollView::OnSize(nType, cx, cy);
-
-    // 생성된 모든 아이템의 너비를 현재 뷰의 너비(cx)로 일괄 변경
-    for (size_t i = 0; i < m_vecItems.size(); ++i) {
-        if (m_vecItems[i] && m_vecItems[i]->GetSafeHwnd()) {
-            CRect itemRect;
-            m_vecItems[i]->GetWindowRect(&itemRect);
-            int nItemHeight = itemRect.Height();
-
-            m_vecItems[i]->SetWindowPos(NULL, 0, (int)i * nItemHeight, cx, nItemHeight, SWP_NOZORDER);
-        }
-    }
+CListScrollView::~CListScrollView()
+{
+	ClearItems();
 }
 
-void CListScrollView::AddItem() {
-    CPathItem* pItem = new CPathItem();
-    if (!pItem->Create(IDD_PATHITEM_DIALOG, this)) {
-        delete pItem;
-        return;
-    }
+void CListScrollView::OnInitialUpdate()
+{
+	CScrollView::OnInitialUpdate();
 
-    // 1. 현재 스크롤뷰의 클라이언트 영역 크기를 구함
-    CRect viewRect;
-    GetClientRect(&viewRect);
-
-    // 2. 아이템 다이얼로그의 기본 높이를 구함
-    CRect itemRect;
-    pItem->GetWindowRect(&itemRect);
-    int nItemHeight = itemRect.Height();
-
-    // 3. 위치 계산 (nYPos)
-    int nYPos = (int)m_vecItems.size() * nItemHeight;
-
-    // 4. SetWindowPos를 호출할 때 너비(cx)를 스크롤뷰의 너비(viewRect.Width())로 설정
-    // SWP_NOSIZE를 제거해야 크기가 변경됩니다.
-    pItem->SetWindowPos(NULL, 0, nYPos, viewRect.Width(), nItemHeight, SWP_NOZORDER);
-
-    pItem->ShowWindow(SW_SHOW);
-    m_vecItems.push_back(pItem);
-
-    // 5. 스크롤 영역 설정 (가로는 viewRect.Width()로, 세로는 전체 합으로)
-    CSize sizeTotal(viewRect.Width(), (int)m_vecItems.size() * nItemHeight);
-    SetScrollSizes(MM_TEXT, CSize(viewRect.Width(), (int)m_vecItems.size() * nItemHeight));
+	CSize sizeTotal(0, 10000); // 가로는 0, 세로는 필요한 만큼
+	SetScrollSizes(MM_TEXT, sizeTotal);
 }
 
-void CListScrollView::RemoveItem(int idx) {
-    if (m_vecItems.empty()) return;
-    if (idx < 0) {
-        idx = (int)m_vecItems.size() - 1; // 마지막 아이템 제거
-    }
-    if (idx >= 0 && idx < (int)m_vecItems.size()) {
-        CPathItem* pItem = m_vecItems[idx];
-        if (pItem) {
-            pItem->DestroyWindow();
-            delete pItem;
-        }
-        m_vecItems.erase(m_vecItems.begin() + idx);
-        CRect itemRect;
-        // 아이템 제거 후 나머지 아이템들의 위치 재조정
-        for (size_t i = 0; i < m_vecItems.size(); ++i) {
-            if (m_vecItems[i] && m_vecItems[i]->GetSafeHwnd()) {
-                
-                m_vecItems[i]->GetWindowRect(&itemRect);
-                int nItemHeight = itemRect.Height();
-                m_vecItems[i]->SetWindowPos(NULL, 0, (int)i * nItemHeight, itemRect.Width(), nItemHeight, SWP_NOZORDER);
-            }
-        }
-        // 스크롤 영역 재설정
-        CRect viewRect;
-        GetClientRect(&viewRect);
-        CSize sizeTotal(viewRect.Width(), (int)m_vecItems.size() * itemRect.Height());
-        SetScrollSizes(MM_TEXT, sizeTotal);
-    }
+void CListScrollView::OnDraw(CDC* pDC)
+{
+	CRect rect;
+	GetClientRect(&rect);
+	pDC->FillSolidRect(rect, RGB(255, 255, 255));
+}
+
+void CListScrollView::OnSize(UINT nType, int cx, int cy)
+{
+	CScrollView::OnSize(nType, cx, cy);
+	LayoutItems();
+}
+
+CDialogEx* CListScrollView::AddItem()
+{
+	CDialogEx* pItem = CreateItem();
+	if (pItem == nullptr)
+	{
+		return nullptr;
+	}
+
+	m_vecItems.push_back(pItem);
+	pItem->ShowWindow(SW_SHOW);
+
+	LayoutItems();
+	return pItem;
+}
+
+void CListScrollView::RemoveItem(int nIndex)
+{
+	if (m_vecItems.empty())
+	{
+		return;
+	}
+
+	if (nIndex < 0)
+	{
+		nIndex = static_cast<int>(m_vecItems.size()) - 1;
+	}
+
+	if (nIndex < 0 || nIndex >= static_cast<int>(m_vecItems.size()))
+	{
+		return;
+	}
+
+	CDialogEx* pItem = m_vecItems[nIndex];
+	if (pItem != nullptr)
+	{
+		if (pItem->GetSafeHwnd())
+		{
+			pItem->DestroyWindow();
+		}
+
+		delete pItem;
+	}
+
+	m_vecItems.erase(m_vecItems.begin() + nIndex);
+	LayoutItems();
+}
+
+void CListScrollView::RemoveItem(CWnd* pItem)
+{
+	if (pItem == nullptr)
+	{
+		return;
+	}
+
+	for (int i = 0; i < static_cast<int>(m_vecItems.size()); ++i)
+	{
+		if (m_vecItems[i] == pItem)
+		{
+			RemoveItem(i);
+			return;
+		}
+	}
+}
+
+void CListScrollView::ClearItems()
+{
+	for (int i = 0; i < static_cast<int>(m_vecItems.size()); ++i)
+	{
+		CDialogEx* pItem = m_vecItems[i];
+		if (pItem != nullptr)
+		{
+			if (pItem->GetSafeHwnd())
+			{
+				pItem->DestroyWindow();
+			}
+
+			delete pItem;
+		}
+	}
+
+	m_vecItems.clear();
+	UpdateScrollSize();
+}
+
+LRESULT CListScrollView::OnRemoveItem(WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(lParam);
+
+	const HWND hItem = reinterpret_cast<HWND>(wParam);
+	if (hItem == nullptr)
+	{
+		return 0;
+	}
+
+	for (int i = 0; i < static_cast<int>(m_vecItems.size()); ++i)
+	{
+		CDialogEx* pItem = m_vecItems[i];
+		if (pItem != nullptr && pItem->GetSafeHwnd() == hItem)
+		{
+			RemoveItem(i);
+			break;
+		}
+	}
+
+	return 0;
+}
+
+CDialogEx* CListScrollView::CreateItem()
+{
+	CDialogEx* pItem = nullptr;
+	UINT nDialogID = 0;
+
+	switch (m_eItemType)
+	{
+	case ITEM_PATH:
+		pItem = new CPathItem(this);
+		nDialogID = IDD_PATHITEM_DIALOG;
+		break;
+	case ITEM_SETUP:
+		pItem = new CSetupItem(this);
+		nDialogID = IDD_SETUPITEM_DIALOG;
+		break;
+	default:
+		return nullptr;
+	}
+
+	if (!pItem->Create(nDialogID, this))
+	{
+		delete pItem;
+		return nullptr;
+	}
+
+	return pItem;
+}
+
+void CListScrollView::LayoutItems()
+{
+	if (!GetSafeHwnd())
+	{
+		return;
+	}
+
+	CRect viewRect;
+	GetClientRect(&viewRect);
+
+	int nY = 0;
+	for (int i = 0; i < static_cast<int>(m_vecItems.size()); ++i)
+	{
+		CDialogEx* pItem = m_vecItems[i];
+		if (pItem == nullptr || !pItem->GetSafeHwnd())
+		{
+			continue;
+		}
+
+		const int nItemHeight = GetItemHeight(pItem);
+		pItem->SetWindowPos(nullptr, 0, nY, viewRect.Width(), nItemHeight, SWP_NOZORDER);
+		nY += nItemHeight;
+	}
+
+	SetScrollSizes(MM_TEXT, CSize(viewRect.Width(), nY));
+}
+
+void CListScrollView::UpdateScrollSize()
+{
+	if (!GetSafeHwnd())
+	{
+		return;
+	}
+
+	CRect viewRect;
+	GetClientRect(&viewRect);
+
+	int nHeight = 0;
+	for (int i = 0; i < static_cast<int>(m_vecItems.size()); ++i)
+	{
+		nHeight += GetItemHeight(m_vecItems[i]);
+	}
+
+	SetScrollSizes(MM_TEXT, CSize(viewRect.Width(), nHeight));
+}
+
+int CListScrollView::GetItemHeight(CWnd* pItem) const
+{
+	if (pItem == nullptr || !pItem->GetSafeHwnd())
+	{
+		return 0;
+	}
+
+	CRect itemRect;
+	pItem->GetWindowRect(&itemRect);
+	return itemRect.Height();
 }

@@ -64,10 +64,13 @@ BEGIN_MESSAGE_MAP(CAutoMoveDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-	ON_BN_CLICKED(IDC_BT_MAIN_EXIT, &CAutoMoveDlg::OnBnClickedMainExit)
+	ON_BN_CLICKED(IDC_BTN_MAIN_EXIT, &CAutoMoveDlg::OnBnClickedMainExit)
 	ON_WM_SIZE()
 	ON_WM_GETMINMAXINFO()
-	ON_BN_CLICKED(IDC_BT_SYSTEM_OPEN, &CAutoMoveDlg::OnBnClickedBtSystemOpen)
+	ON_BN_CLICKED(IDC_BTN_SETUP_OPEN, &CAutoMoveDlg::OnBnClickedBtSystemOpen)
+	ON_MESSAGE(WM_TRAY_ICON, &CAutoMoveDlg::OnTrayIcon)
+	ON_COMMAND(ID_TRAY_OPEN, &CAutoMoveDlg::OnTrayOpen)
+	ON_COMMAND(ID_TRAY_EXIT, &CAutoMoveDlg::OnTrayExit)
 END_MESSAGE_MAP()
 
 
@@ -104,18 +107,20 @@ BOOL CAutoMoveDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	EnableDynamicLayout(TRUE);
+	AlignControls();
+	SetTrayIcon();
 	
-	m_pSystemDlg = new CSystemDlg(this);
+	m_pSystemDlg = new CSetupDlg(this);
 
 	// 1. Picture Control(IDC_STATIC_LIST_ITEM) 영역 좌표 가져오기
 	CRect rect;
-	CWnd* pWndPos = GetDlgItem(IDC_STATIC_LIST_ITEM);
+	CWnd* pWndPos = GetDlgItem(IDC_STATIC_MAIN_LIST);
 	pWndPos->GetWindowRect(&rect);
 	ScreenToClient(&rect);
 	pWndPos->ShowWindow(SW_HIDE); // 가이드용 컨트롤은 숨김
 
 	// 2. 스크롤뷰 동적 생성
-	m_pScrollView = new CListScrollView();
+	m_pScrollView = new CListScrollView(ITEM_PATH);
 
 	// 3. WS_VSCROLL 스타일을 추가하여 내장 수직 스크롤바 활성화
 	if (!m_pScrollView->Create(NULL, NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER,
@@ -211,15 +216,17 @@ void CAutoMoveDlg::AlignControls()
 	int cx = rectClient.Width();
 
 	// 1. 컨트롤 가져오기
-	CWnd* pBtnClose = GetDlgItem(IDC_BT_MAIN_EXIT);    // 가장 우측 버튼 (1번)
-	CWnd* pBtnSystem = GetDlgItem(IDC_BT_SYSTEM_OPEN); // 그 옆의 버튼 (2번)
-	CWnd* pPic = GetDlgItem(IDC_STATIC_LIST_ITEM);
+	CWnd* pBtnClose = GetDlgItem(IDC_BTN_MAIN_EXIT);    // 가장 우측 버튼 (1번)
+	CWnd* pBtnSetup = GetDlgItem(IDC_BTN_SETUP_OPEN); // 그 옆의 버튼 (2번)
+	CWnd* pPic = GetDlgItem(IDC_STATIC_MAIN_LIST);
 
+	int firstBtnX = 0; // 두 번째 버튼의 기준점이 될 좌표
 	const int RIGHT_MARGIN = 10; // 우측 끝단 마진
-	const int ELEMENT_GAP = 10;  // 버튼 사이의 간격 (동일 마진 적용)
+	const int BOTTOM_MARGIN = 10; // 하단 마진
+	const int ELEMENT_GAP = 10;  // 버튼 사이의 간격
 
 	// 2. 가장 우측 버튼(Close) 정렬
-	int firstBtnX = 0; // 두 번째 버튼의 기준점이 될 좌표
+	
 	if (pBtnClose && pBtnClose->GetSafeHwnd()) {
 		CRect r;
 		pBtnClose->GetWindowRect(&r);
@@ -231,14 +238,14 @@ void CAutoMoveDlg::AlignControls()
 	}
 
 	// 3. 두 번째 버튼(System) 정렬 - 동일 마진 적용
-	if (pBtnSystem && pBtnSystem->GetSafeHwnd()) {
+	if (pBtnSetup && pBtnSetup->GetSafeHwnd()) {
 		CRect r;
-		pBtnSystem->GetWindowRect(&r);
+		pBtnSetup->GetWindowRect(&r);
 		ScreenToClient(&r);
 
 		// 첫 번째 버튼의 시작점(firstBtnX)에서 간격과 자신의 너비를 뺌
-		int secondBtnX = firstBtnX - r.Width() - ELEMENT_GAP;
-		pBtnSystem->MoveWindow(secondBtnX, r.top, r.Width(), r.Height());
+		firstBtnX = cx - r.Width() - RIGHT_MARGIN;
+		pBtnSetup->MoveWindow(firstBtnX, r.top, r.Width(), r.Height());
 	}
 
 	// 4. Picture Control 및 스크롤뷰 영역 업데이트
@@ -249,10 +256,13 @@ void CAutoMoveDlg::AlignControls()
 
 		// 우측 끝 마진에 맞게 너비 조절
 		int newPicWidth = cx - rPic.left - RIGHT_MARGIN;
-		pPic->MoveWindow(rPic.left, rPic.top, newPicWidth, rPic.Height());
+
+		// 하단 끝 마진에 맞게 높이 조절
+		int newPicHeight = rectClient.Height() - rPic.top - BOTTOM_MARGIN;
+		pPic->MoveWindow(rPic.left, rPic.top, newPicWidth, newPicHeight);
 
 		if (m_pScrollView && m_pScrollView->GetSafeHwnd()) {
-			m_pScrollView->MoveWindow(rPic.left, rPic.top, newPicWidth, rPic.Height());
+			m_pScrollView->MoveWindow(rPic.left, rPic.top, newPicWidth, newPicHeight);
 		}
 	}
 }
@@ -260,4 +270,55 @@ void CAutoMoveDlg::AlignControls()
 void CAutoMoveDlg::OnBnClickedBtSystemOpen()
 {
 	m_pSystemDlg->DoModal();
+}
+
+void CAutoMoveDlg::OnCancel()
+{
+	// 임의로 종료 방지
+}
+
+void CAutoMoveDlg::SetTrayIcon()
+{
+	// 트레이 아이콘 설정
+	m_nId.cbSize = sizeof(NOTIFYICONDATA);
+	m_nId.hWnd = m_hWnd;
+	m_nId.uID = 1; 
+	m_nId.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+	m_nId.uCallbackMessage = WM_TRAY_ICON; 
+	m_nId.hIcon = m_hIcon; // 아이콘 핸들
+	_tcscpy_s(m_nId.szTip, _T("AutoMove")); 
+	Shell_NotifyIcon(NIM_ADD, &m_nId);
+}
+
+// 트레이 아이콘 메시지 처리
+LRESULT CAutoMoveDlg::OnTrayIcon(WPARAM wParam, LPARAM lParam) {
+	if (lParam == WM_RBUTTONUP) { 
+		CMenu menu, * pSubMenu;
+		menu.LoadMenu(IDR_MENU_TRAY);
+		pSubMenu = menu.GetSubMenu(0);
+
+		CPoint pt;
+		GetCursorPos(&pt);
+
+		// 트레이 메뉴 동작을 위한 필수 설정
+		SetForegroundWindow();
+		pSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
+	}
+	else if (lParam == WM_LBUTTONDBLCLK) { // 더블 클릭 시 화면 열기
+		SendMessage(WM_COMMAND, ID_TRAY_OPEN);
+	}
+	return 0;
+}
+
+void CAutoMoveDlg::OnTrayOpen()
+{
+	if (IsIconic()) ShowWindow(SW_RESTORE);
+	else			ShowWindow(SW_SHOW);
+	SetForegroundWindow();
+}
+
+void CAutoMoveDlg::OnTrayExit()
+{
+	Shell_NotifyIcon(NIM_DELETE, &m_nId); // 중요: 종료 시 아이콘 제거
+	OnBnClickedMainExit();
 }

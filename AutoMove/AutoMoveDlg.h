@@ -3,7 +3,10 @@
 
 #pragma once
 #include "CListScrollView.h"
-#include "CSystemDlg.h"
+#include "CSetupDlg.h"
+#include "CParameter.h"
+
+#define WM_TRAY_ICON (WM_USER + 1)
 
 // CAutoMoveDlg 대화 상자
 class CAutoMoveDlg : public CDialogEx
@@ -11,6 +14,7 @@ class CAutoMoveDlg : public CDialogEx
 // 생성입니다.
 public:
 	CAutoMoveDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
+	NOTIFYICONDATA m_nId; // 트레이 아이콘 구조체
 
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
@@ -24,27 +28,28 @@ public:
 protected:
 	HICON m_hIcon;
 
-	CListScrollView* m_pScrollView{};
-	CSystemDlg* m_pSystemDlg{};
-
-
 	// 생성된 메시지 맵 함수
 	virtual BOOL OnInitDialog();
+	virtual void OnCancel();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	afx_msg void OnBnClickedMainExit();
 	DECLARE_MESSAGE_MAP()
 public:
-	enum DIR_TYPE {
-		DIR_LEFT,
-		DIR_UP,
-		DIR_RIGHT,
-		DIR_DOWN,
-	};
-
-	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
+	CListScrollView* m_pScrollView{};
+	CSetupDlg* m_pSystemDlg{};
+	CParameter m_pParam;
 
 	void AlignControls();
+	void SetTrayIcon();
+
+	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 	afx_msg void OnBnClickedBtSystemOpen();
+	
+	
+	// 트레이 아이콘 메시지 처리
+	afx_msg LRESULT OnTrayIcon(WPARAM wParam, LPARAM lParam); 
+	afx_msg void OnTrayOpen();
+	afx_msg void OnTrayExit();
 };
