@@ -38,7 +38,6 @@ public:
 	// int m_nMoveDelay;
 	// CString m_strSourcePath;
 	// BOOL m_bUseAutoMove;
-	BOOL m_bUseBootAutoStart;
 	std::vector<PARAM_TEMPLATE> m_vecTemplate;
 
 protected:
@@ -56,6 +55,9 @@ private:
 
 	BOOL LoadTemplate();
 	BOOL SaveTemplate();
+	void LoadTemplateNames(std::vector<CString>& vecTemplateNames) const;
+	BOOL DeleteTemplateSection(LPCTSTR lpszName) const;
+	BOOL FormatIniFile() const;
 	PARAM_TEMPLATE* FindTemplate(LPCTSTR lpszName);
 	CString GetTemplateSection(LPCTSTR lpszName) const;
 	BOOL WriteString(LPCTSTR lpszSection, LPCTSTR lpszKey, LPCTSTR lpszValue) const;

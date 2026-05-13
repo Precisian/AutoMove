@@ -14,7 +14,6 @@
 #define IDR_MENU_TRAY                   136
 #define IDC_BTN_SYSTEM_EXIT             1000
 #define IDC_BTN_SYSTEM_SAVE             1001
-#define IDC_BTN_SYSTEM_SAVE2            1002
 #define IDC_BTN_SYSTEM_ADDITEM          1002
 #define IDC_BTN_MAIN_EXIT               1004
 #define IDC_BTN_SETUP_OPEN              1005
@@ -40,6 +39,10 @@
 #define IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS 1033
 #define IDC_EDIT2                       1034
 #define IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME 1034
+#define IDC_COMBO_SETUPITEM_DRIVENAME   1035
+#define IDC_CK_SETUPITEM_BOOTSTART      1036
+#define IDC_BTN_SETUP_TESTSTART         1037
+#define IDC_STATIC_PATHITEM_EVENT       1038
 #define ID_32771                        32771
 #define ID_32772                        32772
 #define ID_32773                        32773
@@ -53,7 +56,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        137
 #define _APS_NEXT_COMMAND_VALUE         32777
-#define _APS_NEXT_CONTROL_VALUE         1035
+#define _APS_NEXT_CONTROL_VALUE         1039
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
