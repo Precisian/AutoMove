@@ -6,10 +6,17 @@
 #include "AutoMove.h"
 #include "AutoMoveDlg.h"
 #include "afxdialogex.h"
+#include "CPathItem.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+
+namespace
+{
+	constexpr UINT_PTR TIMER_PATHITEM_BLINK = 1;
+	constexpr UINT TIMER_PATHITEM_BLINK_INTERVAL = 1000;
+}
 
 
 // 응용 프로그램 정보에 사용되는 CAboutDlg 대화 상자입니다.
@@ -50,7 +57,8 @@ END_MESSAGE_MAP()
 CAutoMoveDlg::CAutoMoveDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_AUTOMOVE_DIALOG, pParent)
 	, m_pScrollView(nullptr)
-	, m_pSystemDlg(nullptr)
+	, m_bPathItemBlinkOn(TRUE)
+	, m_bPathItemBlinkTimerActive(FALSE)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -67,10 +75,12 @@ BEGIN_MESSAGE_MAP(CAutoMoveDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_MAIN_EXIT, &CAutoMoveDlg::OnBnClickedMainExit)
 	ON_WM_SIZE()
 	ON_WM_GETMINMAXINFO()
+	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BTN_SETUP_OPEN, &CAutoMoveDlg::OnBnClickedBtSystemOpen)
 	ON_MESSAGE(WM_TRAY_ICON, &CAutoMoveDlg::OnTrayIcon)
 	ON_COMMAND(ID_TRAY_OPEN, &CAutoMoveDlg::OnTrayOpen)
 	ON_COMMAND(ID_TRAY_EXIT, &CAutoMoveDlg::OnTrayExit)
+	ON_MESSAGE(WM_PATHITEM_STATE_CHANGED, &CAutoMoveDlg::OnPathItemStateChanged)
 END_MESSAGE_MAP()
 
 
@@ -109,8 +119,8 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	EnableDynamicLayout(TRUE);
 	AlignControls();
 	SetTrayIcon();
-	
-	m_pSystemDlg = new CSetupDlg(this);
+	m_pParam.Load();
+	LoadAvailableDriveNames();
 
 	// 1. Picture Control(IDC_STATIC_LIST_ITEM) 영역 좌표 가져오기
 	CRect rect;
@@ -129,7 +139,8 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	}
 
 	m_pScrollView->OnInitialUpdate();
-	m_pScrollView->AddItem();
+	ReloadPathItems();
+	UpdatePathItemBlinkTimer();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -193,6 +204,7 @@ void CAutoMoveDlg::OnBnClickedMainExit()
 	int ret = MessageBox(_T("프로그램을 종료하시겠습니까?"), _T("종료 확인"), MB_YESNO | MB_ICONQUESTION);
 	if (ret == IDYES)
 	{
+		KillTimer(TIMER_PATHITEM_BLINK);
 		EndDialog(IDOK);
 	}
 }
@@ -201,10 +213,10 @@ void CAutoMoveDlg::OnBnClickedMainExit()
 void CAutoMoveDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
 	// 예: 창 크기를 800x600으로 완전히 고정하고 싶을 때
-	lpMMI->ptMinTrackSize.x = 600; // 최소 가로
-	lpMMI->ptMinTrackSize.y = 400; // 최소 세로
-	lpMMI->ptMaxTrackSize.x = 600; // 최대 가로
-	lpMMI->ptMaxTrackSize.y = 400; // 최대 세로
+	lpMMI->ptMinTrackSize.x = 400; // 최소 가로
+	lpMMI->ptMinTrackSize.y = 300; // 최소 세로
+	lpMMI->ptMaxTrackSize.x = 400; // 최대 가로
+	lpMMI->ptMaxTrackSize.y = 300; // 최대 세로
 
 	CDialogEx::OnGetMinMaxInfo(lpMMI);
 }
@@ -269,12 +281,37 @@ void CAutoMoveDlg::AlignControls()
 
 void CAutoMoveDlg::OnBnClickedBtSystemOpen()
 {
-	m_pSystemDlg->DoModal();
+	CSetupDlg dlg(this, &m_pParam, m_vecAvailableDriveNames);
+	if (dlg.DoModal() == IDOK)
+	{
+		ReloadPathItems();
+	}
 }
 
 void CAutoMoveDlg::OnCancel()
 {
 	// 임의로 종료 방지
+}
+
+void CAutoMoveDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == TIMER_PATHITEM_BLINK)
+	{
+		m_bPathItemBlinkOn = !m_bPathItemBlinkOn;
+		NotifyPathItemBlink();
+		return;
+	}
+
+	CDialogEx::OnTimer(nIDEvent);
+}
+
+LRESULT CAutoMoveDlg::OnPathItemStateChanged(WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(wParam);
+	UNREFERENCED_PARAMETER(lParam);
+
+	UpdatePathItemBlinkTimer();
+	return 0;
 }
 
 void CAutoMoveDlg::SetTrayIcon()
@@ -288,6 +325,110 @@ void CAutoMoveDlg::SetTrayIcon()
 	m_nId.hIcon = m_hIcon; // 아이콘 핸들
 	_tcscpy_s(m_nId.szTip, _T("AutoMove")); 
 	Shell_NotifyIcon(NIM_ADD, &m_nId);
+}
+
+void CAutoMoveDlg::ReloadPathItems()
+{
+	if (m_pScrollView == nullptr || !m_pScrollView->GetSafeHwnd())
+	{
+		return;
+	}
+
+	m_pScrollView->ClearItems();
+
+	for (int i = 0; i < static_cast<int>(m_pParam.m_vecTemplate.size()); ++i)
+	{
+		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->AddItem());
+		if (pItem != nullptr)
+		{
+			const CParameter::PARAM_TEMPLATE& paramTemplate = m_pParam.m_vecTemplate[i];
+			pItem->LoadFromTemplate(paramTemplate);
+			pItem->SetBlinkOn(m_bPathItemBlinkOn);
+		}
+	}
+
+	UpdatePathItemBlinkTimer();
+}
+
+void CAutoMoveDlg::NotifyPathItemBlink()
+{
+	if (m_pScrollView == nullptr || !m_pScrollView->GetSafeHwnd())
+	{
+		return;
+	}
+
+	for (int i = 0; i < m_pScrollView->GetItemCount(); ++i)
+	{
+		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
+		if (pItem != nullptr)
+		{
+			pItem->SetBlinkOn(m_bPathItemBlinkOn);
+		}
+	}
+}
+
+void CAutoMoveDlg::UpdatePathItemBlinkTimer()
+{
+	const BOOL bNeedTimer = HasBlinkingPathItem();
+	if (bNeedTimer && !m_bPathItemBlinkTimerActive)
+	{
+		SetTimer(TIMER_PATHITEM_BLINK, TIMER_PATHITEM_BLINK_INTERVAL, nullptr);
+		m_bPathItemBlinkTimerActive = TRUE;
+		return;
+	}
+
+	if (!bNeedTimer && m_bPathItemBlinkTimerActive)
+	{
+		KillTimer(TIMER_PATHITEM_BLINK);
+		m_bPathItemBlinkTimerActive = FALSE;
+		m_bPathItemBlinkOn = TRUE;
+		NotifyPathItemBlink();
+	}
+}
+
+BOOL CAutoMoveDlg::HasBlinkingPathItem() const
+{
+	if (m_pScrollView == nullptr || !m_pScrollView->GetSafeHwnd())
+	{
+		return FALSE;
+	}
+
+	for (int i = 0; i < m_pScrollView->GetItemCount(); ++i)
+	{
+		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
+		if (pItem != nullptr && (pItem->IsWaitingEvent() || pItem->IsWorkingMoveCopy()))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+void CAutoMoveDlg::LoadAvailableDriveNames()
+{
+	m_vecAvailableDriveNames.clear();
+
+	const DWORD dwLogicalDrives = GetLogicalDrives();
+	for (TCHAR chDrive = _T('D'); chDrive <= _T('Z'); ++chDrive)
+	{
+		const DWORD dwMask = 1 << (chDrive - _T('A'));
+		if ((dwLogicalDrives & dwMask) == 0)
+		{
+			continue;
+		}
+
+		CString strRoot;
+		strRoot.Format(_T("%c:\\"), chDrive);
+		if (GetDriveType(strRoot) == DRIVE_NO_ROOT_DIR)
+		{
+			continue;
+		}
+
+		CString strDriveName;
+		strDriveName.Format(_T("%c"), chDrive);
+		m_vecAvailableDriveNames.push_back(strDriveName);
+	}
 }
 
 // 트레이 아이콘 메시지 처리

@@ -38,14 +38,23 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	CListScrollView* m_pScrollView{};
-	CSetupDlg* m_pSystemDlg{};
 	CParameter m_pParam;
+	BOOL m_bPathItemBlinkOn;
+	BOOL m_bPathItemBlinkTimerActive;
+	std::vector<CString> m_vecAvailableDriveNames;
 
 	void AlignControls();
 	void SetTrayIcon();
+	void ReloadPathItems();
+	void NotifyPathItemBlink();
+	void UpdatePathItemBlinkTimer();
+	BOOL HasBlinkingPathItem() const;
+	void LoadAvailableDriveNames();
 
 	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 	afx_msg void OnBnClickedBtSystemOpen();
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg LRESULT OnPathItemStateChanged(WPARAM wParam, LPARAM lParam);
 	
 	
 	// 트레이 아이콘 메시지 처리

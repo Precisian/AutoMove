@@ -23,12 +23,16 @@ CListScrollView::~CListScrollView()
 	ClearItems();
 }
 
+void CListScrollView::SetAvailableDriveNames(const std::vector<CString>& vecDriveNames)
+{
+	m_vecAvailableDriveNames = vecDriveNames;
+}
+
 void CListScrollView::OnInitialUpdate()
 {
 	CScrollView::OnInitialUpdate();
-
-	CSize sizeTotal(0, 10000); // 가로는 0, 세로는 필요한 만큼
-	SetScrollSizes(MM_TEXT, sizeTotal);
+	SetVerticalScrollSize(0);
+	DisableHorizontalScroll();
 }
 
 void CListScrollView::OnDraw(CDC* pDC)
@@ -38,10 +42,16 @@ void CListScrollView::OnDraw(CDC* pDC)
 	pDC->FillSolidRect(rect, RGB(255, 255, 255));
 }
 
+void CListScrollView::PostNcDestroy()
+{
+	CWnd::PostNcDestroy();
+}
+
 void CListScrollView::OnSize(UINT nType, int cx, int cy)
 {
 	CScrollView::OnSize(nType, cx, cy);
 	LayoutItems();
+	DisableHorizontalScroll();
 }
 
 CDialogEx* CListScrollView::AddItem()
@@ -128,6 +138,21 @@ void CListScrollView::ClearItems()
 	UpdateScrollSize();
 }
 
+int CListScrollView::GetItemCount() const
+{
+	return static_cast<int>(m_vecItems.size());
+}
+
+CDialogEx* CListScrollView::GetItem(int nIndex) const
+{
+	if (nIndex < 0 || nIndex >= static_cast<int>(m_vecItems.size()))
+	{
+		return nullptr;
+	}
+
+	return m_vecItems[nIndex];
+}
+
 LRESULT CListScrollView::OnRemoveItem(WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
@@ -163,7 +188,7 @@ CDialogEx* CListScrollView::CreateItem()
 		nDialogID = IDD_PATHITEM_DIALOG;
 		break;
 	case ITEM_SETUP:
-		pItem = new CSetupItem(this);
+		pItem = new CSetupItem(this, m_vecAvailableDriveNames);
 		nDialogID = IDD_SETUPITEM_DIALOG;
 		break;
 	default:
@@ -203,7 +228,7 @@ void CListScrollView::LayoutItems()
 		nY += nItemHeight;
 	}
 
-	SetScrollSizes(MM_TEXT, CSize(viewRect.Width(), nY));
+	SetVerticalScrollSize(nY);
 }
 
 void CListScrollView::UpdateScrollSize()
@@ -222,7 +247,26 @@ void CListScrollView::UpdateScrollSize()
 		nHeight += GetItemHeight(m_vecItems[i]);
 	}
 
-	SetScrollSizes(MM_TEXT, CSize(viewRect.Width(), nHeight));
+	SetVerticalScrollSize(nHeight);
+}
+
+void CListScrollView::SetVerticalScrollSize(int nHeight)
+{
+	SetScrollSizes(MM_TEXT, CSize(0, max(0, nHeight)));
+	DisableHorizontalScroll();
+}
+
+void CListScrollView::DisableHorizontalScroll()
+{
+	if (!GetSafeHwnd())
+	{
+		return;
+	}
+
+	SetScrollPos(SB_HORZ, 0);
+	ShowScrollBar(SB_HORZ, FALSE);
+	EnableScrollBarCtrl(SB_HORZ, FALSE);
+	ModifyStyle(WS_HSCROLL, 0);
 }
 
 int CListScrollView::GetItemHeight(CWnd* pItem) const

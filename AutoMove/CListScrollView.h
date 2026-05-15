@@ -21,14 +21,18 @@ public:
 	explicit CListScrollView(ITEM_TYPE eItemType);
 	virtual ~CListScrollView();
 
+	void SetAvailableDriveNames(const std::vector<CString>& vecDriveNames);
 	CDialogEx* AddItem();
 	void RemoveItem(int nIndex = -1);
 	void RemoveItem(CWnd* pItem);
 	void ClearItems();
+	int GetItemCount() const;
+	CDialogEx* GetItem(int nIndex) const;
 	virtual void OnInitialUpdate();
 	virtual void OnDraw(CDC* pDC) override;
 
 protected:
+	virtual void PostNcDestroy() override;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg LRESULT OnRemoveItem(WPARAM wParam, LPARAM lParam);
 	DECLARE_MESSAGE_MAP()
@@ -37,8 +41,11 @@ private:
 	CDialogEx* CreateItem();
 	void LayoutItems();
 	void UpdateScrollSize();
+	void SetVerticalScrollSize(int nHeight);
+	void DisableHorizontalScroll();
 	int GetItemHeight(CWnd* pItem) const;
 
 	ITEM_TYPE m_eItemType;
+	std::vector<CString> m_vecAvailableDriveNames;
 	std::vector<CDialogEx*> m_vecItems;
 };
