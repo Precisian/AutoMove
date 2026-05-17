@@ -24,6 +24,9 @@
     <ClInclude Include="AutoMoveDlg.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="CDriveManager.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -51,12 +54,18 @@
     <ClInclude Include="CSetupItem.h">
       <Filter>Dialog</Filter>
     </ClInclude>
+    <ClInclude Include="DriveInfo.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AutoMove.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="AutoMoveDlg.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CDriveManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
