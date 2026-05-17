@@ -41,6 +41,7 @@ protected:
 	afx_msg void OnBnClickedCheckEnableMove();
 	afx_msg void OnBnClickedBtnSetupitemRemove();
 	afx_msg void OnEnChangeEditLimitValue();
+	afx_msg void OnEnChangeEditEndValue();
 	afx_msg void OnEnChangeEditScheduleTime();
 
 	DECLARE_MESSAGE_MAP()

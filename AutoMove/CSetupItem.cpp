@@ -17,6 +17,7 @@ namespace
 	constexpr LPCTSTR KEY_DRIVE_NAME = _T("DriveName");
 	constexpr LPCTSTR KEY_LIMIT_MODE = _T("LimitMode");
 	constexpr LPCTSTR KEY_LIMIT_VALUE = _T("LimitValue");
+	constexpr LPCTSTR KEY_END_VALUE = _T("EndValue");
 	constexpr LPCTSTR KEY_SCHEDULE_DAYS = _T("ScheduleDays");
 	constexpr LPCTSTR KEY_SCHEDULE_TIME = _T("ScheduleTime");
 	constexpr LPCTSTR LIMIT_MODE_STORAGE = _T("Storage");
@@ -100,6 +101,7 @@ BEGIN_MESSAGE_MAP(CSetupItem, CDialogEx)
 	ON_BN_CLICKED(IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE, &CSetupItem::OnBnClickedRadioLimitSchedule)
 	ON_BN_CLICKED(IDC_BTN_SETUPITEM_REMOVE, &CSetupItem::OnBnClickedBtnSetupitemRemove)
 	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_LIMIT_VALUE, &CSetupItem::OnEnChangeEditLimitValue)
+	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_END_VALUE, &CSetupItem::OnEnChangeEditEndValue)
 	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, &CSetupItem::OnEnChangeEditScheduleTime)
 END_MESSAGE_MAP()
 
@@ -116,6 +118,12 @@ BOOL CSetupItem::OnInitDialog()
 	}
 
 	pEdit = (CEdit*)GetDlgItem(IDC_EDIT_SETUPITEM_LIMIT_VALUE);
+	if (pEdit)
+	{
+		pEdit->SetLimitText(3);
+	}
+
+	pEdit = (CEdit*)GetDlgItem(IDC_EDIT_SETUPITEM_END_VALUE);
 	if (pEdit)
 	{
 		pEdit->SetLimitText(3);
@@ -160,10 +168,12 @@ void CSetupItem::AlignControls()
 	CWnd* pEditDest = GetDlgItem(IDC_EDIT_SETUPITEM_PATH_DEST);
 	CWnd* pGroupStorage = FindGroupBox(_T("용량 제한"));
 	CWnd* pGroupSchedule = FindGroupBox(_T("스케줄"));
+	CWnd* pGroupEnd = FindGroupBox(_T("종료조건"));
 	CWnd* pComboScheduleDays = GetDlgItem(IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS);
-	CWnd* pComboDriveName = GetDlgItem(IDC_COMBO_SETUPITEM_DRIVENAME);
 	CWnd* pEditScheduleTime = GetDlgItem(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME);
 	CWnd* pTextScheduleAfter = FindChildByText(_T("이후에 실행"));
+	CWnd* pEditEndValue = GetDlgItem(IDC_EDIT_SETUPITEM_END_VALUE);
+	CWnd* pTextEndAfter = FindChildByText(_T("% 미만 시 종료"));
 
 	if (pBtnRemove == nullptr || !pBtnRemove->GetSafeHwnd())
 	{
@@ -201,27 +211,35 @@ void CSetupItem::AlignControls()
 	}
 
 	if (pGroupStorage != nullptr && pGroupStorage->GetSafeHwnd()
-		&& pGroupSchedule != nullptr && pGroupSchedule->GetSafeHwnd())
+		&& pGroupSchedule != nullptr && pGroupSchedule->GetSafeHwnd()
+		&& pGroupEnd != nullptr && pGroupEnd->GetSafeHwnd())
 	{
-		const int nGroupGap = 5;
+		const int nGroupGap = 3;
 
 		CRect rectStorage;
 		CRect rectSchedule;
+		CRect rectEnd;
 		pGroupStorage->GetWindowRect(&rectStorage);
 		pGroupSchedule->GetWindowRect(&rectSchedule);
+		pGroupEnd->GetWindowRect(&rectEnd);
 		ScreenToClient(&rectStorage);
 		ScreenToClient(&rectSchedule);
+		ScreenToClient(&rectEnd);
 
 		const int nTotalLeft = rectStorage.left;
 		const int nTotalRight = nEditRight;
-		const int nTotalWidth = max(0, nTotalRight - nTotalLeft - nGroupGap);
-		const int nStorageWidth = nTotalWidth / 2;
+		const int nTotalWidth = max(0, nTotalRight - nTotalLeft - (nGroupGap * 2));
+		const int nStorageWidth = nTotalWidth * 91 / (91 + 127 + 96);
 		const int nScheduleLeft = nTotalLeft + nStorageWidth + nGroupGap;
-		const int nScheduleWidth = max(0, nTotalRight - nScheduleLeft);
+		const int nScheduleWidth = nTotalWidth * 127 / (91 + 127 + 96);
+		const int nEndLeft = nScheduleLeft + nScheduleWidth + nGroupGap;
+		const int nEndWidth = max(0, nTotalRight - nEndLeft);
 		const int nScheduleOffsetX = nScheduleLeft - rectSchedule.left;
+		const int nEndOffsetX = nEndLeft - rectEnd.left;
 
 		pGroupStorage->MoveWindow(rectStorage.left, rectStorage.top, nStorageWidth, rectStorage.Height());
 		pGroupSchedule->MoveWindow(nScheduleLeft, rectSchedule.top, nScheduleWidth, rectSchedule.Height());
+		pGroupEnd->MoveWindow(nEndLeft, rectEnd.top, nEndWidth, rectEnd.Height());
 
 		CWnd* arrScheduleChild[] = { pComboScheduleDays, pEditScheduleTime, pTextScheduleAfter };
 		for (int i = 0; i < 3; ++i)
@@ -237,6 +255,22 @@ void CSetupItem::AlignControls()
 			ScreenToClient(&rectChild);
 
 			pChild->MoveWindow(rectChild.left + nScheduleOffsetX, rectChild.top, rectChild.Width(), rectChild.Height());
+		}
+
+		CWnd* arrEndChild[] = { pEditEndValue, pTextEndAfter };
+		for (int i = 0; i < 2; ++i)
+		{
+			CWnd* pChild = arrEndChild[i];
+			if (pChild == nullptr || !pChild->GetSafeHwnd())
+			{
+				continue;
+			}
+
+			CRect rectChild;
+			pChild->GetWindowRect(&rectChild);
+			ScreenToClient(&rectChild);
+
+			pChild->MoveWindow(rectChild.left + nEndOffsetX, rectChild.top, rectChild.Width(), rectChild.Height());
 		}
 	}
 }
@@ -256,12 +290,8 @@ void CSetupItem::LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplat
 		strLimitMode == LIMIT_MODE_SCHEDULE ? IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE : IDC_RADIO_SETUPITEM_LIMIT_STORAGE);
 
 	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, FindTemplateValue(paramTemplate, KEY_LIMIT_VALUE));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, FindTemplateValue(paramTemplate, KEY_END_VALUE));
 	const CString strDriveName = FindTemplateValue(paramTemplate, KEY_DRIVE_NAME);
-	CComboBox* pComboDriveName = (CComboBox*)GetDlgItem(IDC_COMBO_SETUPITEM_DRIVENAME);
-	if (pComboDriveName != nullptr && pComboDriveName->GetSafeHwnd())
-	{
-		pComboDriveName->SelectString(-1, strDriveName);
-	}
 
 	const CString strScheduleDays = FindTemplateValue(paramTemplate, KEY_SCHEDULE_DAYS);
 	CComboBox* pComboScheduleDays = (CComboBox*)GetDlgItem(IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS);
@@ -315,20 +345,11 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	}
 	AddTemplateValue(paramTemplate, KEY_LIMIT_VALUE, strValue);
 
+	GetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, strValue);
+	strValue.Trim();
+	AddTemplateValue(paramTemplate, KEY_END_VALUE, strValue);
+
 	strValue.Empty();
-	if (!bScheduleMode)
-	{
-		CComboBox* pComboDriveName = (CComboBox*)GetDlgItem(IDC_COMBO_SETUPITEM_DRIVENAME);
-		if (pComboDriveName != nullptr && pComboDriveName->GetSafeHwnd())
-		{
-			const int nCurSel = pComboDriveName->GetCurSel();
-			if (nCurSel != CB_ERR)
-			{
-				pComboDriveName->GetLBText(nCurSel, strValue);
-				strValue.Trim();
-			}
-		}
-	}
 	AddTemplateValue(paramTemplate, KEY_DRIVE_NAME, strValue);
 
 	strValue.Empty();
@@ -380,6 +401,11 @@ void CSetupItem::OnEnChangeEditLimitValue()
 	NormalizeNumericEdit(IDC_EDIT_SETUPITEM_LIMIT_VALUE, 3);
 }
 
+void CSetupItem::OnEnChangeEditEndValue()
+{
+	NormalizeNumericEdit(IDC_EDIT_SETUPITEM_END_VALUE, 3);
+}
+
 void CSetupItem::OnEnChangeEditScheduleTime()
 {
 	NormalizeNumericEdit(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, 4);
@@ -391,17 +417,12 @@ void CSetupItem::UpdateLimitControls()
 	const BOOL bScheduleMode = IsDlgButtonChecked(IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE) == BST_CHECKED;
 
 	CWnd* pEditStorageValue = GetDlgItem(IDC_EDIT_SETUPITEM_LIMIT_VALUE);
-	CWnd* pComboStorageName = GetDlgItem(IDC_COMBO_SETUPITEM_DRIVENAME);
 	CWnd* pComboScheduleDays = GetDlgItem(IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS);
 	CWnd* pEditScheduleTime = GetDlgItem(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME);
 
 	if (pEditStorageValue != nullptr && pEditStorageValue->GetSafeHwnd())
 	{
 		pEditStorageValue->EnableWindow(bStorageMode);
-	}
-	if (pComboStorageName != nullptr && pComboStorageName->GetSafeHwnd())
-	{
-		pComboStorageName->EnableWindow(bStorageMode);
 	}
 
 	if (pComboScheduleDays != nullptr && pComboScheduleDays->GetSafeHwnd())

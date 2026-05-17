@@ -11,6 +11,7 @@ namespace
 	constexpr LPCTSTR KEY_DRIVE_NAME = _T("DriveName");
 	constexpr LPCTSTR KEY_LIMIT_MODE = _T("LimitMode");
 	constexpr LPCTSTR KEY_LIMIT_VALUE = _T("LimitValue");
+	constexpr LPCTSTR KEY_END_VALUE = _T("EndValue");
 	constexpr LPCTSTR KEY_SCHEDULE_DAYS = _T("ScheduleDays");
 	constexpr LPCTSTR KEY_SCHEDULE_TIME = _T("ScheduleTime");
 	constexpr LPCTSTR LIMIT_MODE_SCHEDULE = _T("Schedule");
@@ -21,6 +22,8 @@ namespace
 	constexpr LPCTSTR ERROR_EMPTY_DRIVE_NAME = _T("'%s' 항목의 드라이브가 선택되지 않았습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_LIMIT_VALUE = _T("'%s' 항목의 용량 값이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_LIMIT_VALUE = _T("'%s' 항목의 용량 값은 1~100 사이의 숫자여야 합니다.");
+	constexpr LPCTSTR ERROR_EMPTY_END_VALUE = _T("'%s' 항목의 종료 용량 값이 비어 있습니다.");
+	constexpr LPCTSTR ERROR_INVALID_END_VALUE = _T("'%s' 항목의 종료 용량 값은 1~100 사이의 숫자여야 합니다.");
 	constexpr LPCTSTR ERROR_EMPTY_SCHEDULE_DAY = _T("'%s' 항목의 스케줄 요일이 선택되지 않았습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_SCHEDULE_TIME = _T("'%s' 항목의 스케줄 시간이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_SCHEDULE_TIME = _T("'%s' 항목의 스케줄 시간은 0800 형식의 올바른 4자리 시간이어야 합니다.");
@@ -302,6 +305,7 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	const CString strDriveName = GetTemplateValue(paramTemplate, KEY_DRIVE_NAME);
 	const CString strLimitMode = GetTemplateValue(paramTemplate, KEY_LIMIT_MODE);
 	const CString strLimitValue = GetTemplateValue(paramTemplate, KEY_LIMIT_VALUE);
+	const CString strEndValue = GetTemplateValue(paramTemplate, KEY_END_VALUE);
 	const CString strScheduleDays = GetTemplateValue(paramTemplate, KEY_SCHEDULE_DAYS);
 	const CString strScheduleTime = GetTemplateValue(paramTemplate, KEY_SCHEDULE_TIME);
 
@@ -341,6 +345,15 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 		{
 			AddError(vecErrors, ERROR_INVALID_LIMIT_VALUE, strName);
 		}
+	}
+
+	if (strEndValue.IsEmpty())
+	{
+		AddError(vecErrors, ERROR_EMPTY_END_VALUE, strName);
+	}
+	else if (!IsAllDigits(strEndValue) || _ttoi(strEndValue) < 1 || _ttoi(strEndValue) > 100)
+	{
+		AddError(vecErrors, ERROR_INVALID_END_VALUE, strName);
 	}
 }
 
