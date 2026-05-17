@@ -7,8 +7,7 @@
 class CSetupDlg : public CDialogEx
 {
 public:
-	CSetupDlg(CWnd* pParent, CParameter* pRuntimeParam = nullptr,
-		const std::vector<CString>& vecAvailableDriveNames = std::vector<CString>());
+	CSetupDlg(CWnd* pParent, CParameter* pRuntimeParam = nullptr);
 	virtual ~CSetupDlg();
 
 #ifdef AFX_DESIGN_TIME
@@ -39,5 +38,4 @@ private:
 	void SetAllTemplateBootStart(BOOL bBootStart);
 
 	CParameter* m_pRuntimeParam;
-	std::vector<CString> m_vecAvailableDriveNames;
 };

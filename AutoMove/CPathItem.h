@@ -13,7 +13,7 @@ class CPathItem : public CDialogEx
 
 public:
 	CPathItem(CWnd* pParent = nullptr, CString strPathName = _T(""));   // 표준 생성자입니다.
-	virtual ~CPathItem() = default;
+	virtual ~CPathItem();
 	void LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplate);
 	void SetPathName(LPCTSTR lpszPathName);
 	void SetEventText(LPCTSTR lpszEventText);

@@ -21,7 +21,6 @@ public:
 	explicit CListScrollView(ITEM_TYPE eItemType);
 	virtual ~CListScrollView();
 
-	void SetAvailableDriveNames(const std::vector<CString>& vecDriveNames);
 	CDialogEx* AddItem();
 	void RemoveItem(int nIndex = -1);
 	void RemoveItem(CWnd* pItem);
@@ -46,6 +45,5 @@ private:
 	int GetItemHeight(CWnd* pItem) const;
 
 	ITEM_TYPE m_eItemType;
-	std::vector<CString> m_vecAvailableDriveNames;
 	std::vector<CDialogEx*> m_vecItems;
 };

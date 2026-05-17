@@ -39,11 +39,11 @@
 #define IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS 1033
 #define IDC_EDIT2                       1034
 #define IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME 1034
-#define IDC_COMBO_SETUPITEM_DRIVENAME   1035
 #define IDC_CK_SETUPITEM_BOOTSTART      1036
 #define IDC_BTN_SETUP_TESTSTART         1037
 #define IDC_STATIC_PATHITEM_EVENT       1038
-#define IDC_PROGRESS1                   1039
+#define IDC_EDIT_SETUP_END              1039
+#define IDC_EDIT_SETUPITEM_END_VALUE    1039
 #define ID_32771                        32771
 #define ID_32772                        32772
 #define ID_32773                        32773

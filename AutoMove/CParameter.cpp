@@ -10,6 +10,10 @@ CParameter::CParameter()
 
 void CParameter::InitDefault()
 {
+	// Set initial parameter values here.
+	// m_nMoveDelay = 100;
+	// m_strSourcePath = _T("");
+	// m_bUseAutoMove = TRUE;
 	m_vecTemplate.clear();
 }
 
@@ -25,7 +29,7 @@ BOOL CParameter::Load()
 
 	m_eMode = PARAM_LOAD;
 
-	BOOL bResult = true;
+	BOOL bResult = Add();
 	bResult &= LoadTemplate();
 
 	return bResult;
@@ -35,13 +39,25 @@ BOOL CParameter::Save()
 {
 	m_eMode = PARAM_SAVE;
 
-	BOOL bResult = true;
+	BOOL bResult = Add();
 	WritePrivateProfileString(_T("System"), nullptr, nullptr, m_strIniPath);
 	bResult &= SaveTemplate();
 	if (bResult)
 	{
 		bResult &= FormatIniFile();
 	}
+
+	return bResult;
+}
+
+BOOL CParameter::Add()
+{
+	BOOL bResult = TRUE;
+
+	// Add parameters here.
+	// bResult &= AddParam(_T("System"), _T("MoveDelay"), m_nMoveDelay, 100);
+	// bResult &= AddParam(_T("Path"), _T("Source"), m_strSourcePath, _T(""));
+	// bResult &= AddParam(_T("System"), _T("UseAutoMove"), m_bUseAutoMove, TRUE);
 
 	return bResult;
 }
@@ -102,49 +118,62 @@ CString CParameter::GetIniPath() const
 	return m_strIniPath;
 }
 
-CString CParameter::GetTemplateValue(const PARAM_TEMPLATE& paramTemplate,
-	LPCTSTR lpszKey, LPCTSTR lpszDefault)
+BOOL CParameter::AddParam(LPCTSTR lpszSection, LPCTSTR lpszKey, int& nValue, int nDefault)
 {
-	for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+	if (m_eMode == PARAM_LOAD)
 	{
-		if (paramTemplate.vecValue[i].strKey == lpszKey)
-		{
-			CString strValue = paramTemplate.vecValue[i].strValue;
-			strValue.Trim();
-			return strValue;
-		}
+		nValue = GetPrivateProfileInt(lpszSection, lpszKey, nDefault, m_strIniPath);
+		return TRUE;
 	}
 
-	return lpszDefault;
+	CString strValue;
+	strValue.Format(_T("%d"), nValue);
+	return WriteString(lpszSection, lpszKey, strValue);
 }
 
-void CParameter::SetTemplateValue(PARAM_TEMPLATE& paramTemplate,
-	LPCTSTR lpszKey, LPCTSTR lpszValue)
+BOOL CParameter::AddParam(LPCTSTR lpszSection, LPCTSTR lpszKey, UINT& nValue, UINT nDefault)
 {
-	for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+	if (m_eMode == PARAM_LOAD)
 	{
-		if (paramTemplate.vecValue[i].strKey == lpszKey)
-		{
-			paramTemplate.vecValue[i].strValue = lpszValue;
-			return;
-		}
+		nValue = static_cast<UINT>(GetPrivateProfileInt(lpszSection, lpszKey, nDefault, m_strIniPath));
+		return TRUE;
 	}
 
-	AddTemplateValue(paramTemplate, lpszKey, lpszValue);
+	CString strValue;
+	strValue.Format(_T("%u"), nValue);
+	return WriteString(lpszSection, lpszKey, strValue);
 }
 
-void CParameter::AddTemplateValue(PARAM_TEMPLATE& paramTemplate,
-	LPCTSTR lpszKey, const CString& strValue)
+BOOL CParameter::AddParam(LPCTSTR lpszSection, LPCTSTR lpszKey, double& dValue, double dDefault)
 {
-	PARAM_TEMPLATE_VALUE value;
-	value.strKey = lpszKey;
-	value.strValue = strValue;
-	paramTemplate.vecValue.push_back(value);
+	CString strValue;
+
+	if (m_eMode == PARAM_LOAD)
+	{
+		CString strDefault;
+		strDefault.Format(_T("%.15g"), dDefault);
+
+		GetPrivateProfileString(lpszSection, lpszKey, strDefault, strValue.GetBuffer(128), 128, m_strIniPath);
+		strValue.ReleaseBuffer();
+
+		dValue = _tcstod(strValue, nullptr);
+		return TRUE;
+	}
+
+	strValue.Format(_T("%.15g"), dValue);
+	return WriteString(lpszSection, lpszKey, strValue);
 }
 
-BOOL CParameter::IsScheduleLimitMode(const PARAM_TEMPLATE& paramTemplate)
+BOOL CParameter::AddParam(LPCTSTR lpszSection, LPCTSTR lpszKey, CString& strValue, LPCTSTR lpszDefault)
 {
-	return GetTemplateValue(paramTemplate, TemplateKey::LIMIT_MODE) == TemplateKey::LIMIT_MODE_SCHEDULE;
+	if (m_eMode == PARAM_LOAD)
+	{
+		GetPrivateProfileString(lpszSection, lpszKey, lpszDefault, strValue.GetBuffer(4096), 4096, m_strIniPath);
+		strValue.ReleaseBuffer();
+		return TRUE;
+	}
+
+	return WriteString(lpszSection, lpszKey, strValue);
 }
 
 BOOL CParameter::LoadTemplate()

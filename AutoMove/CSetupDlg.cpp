@@ -4,6 +4,17 @@
 
 namespace
 {
+	constexpr LPCTSTR KEY_NAME = _T("Name");
+	constexpr LPCTSTR KEY_ORIGIN_PATH = _T("OriginPath");
+	constexpr LPCTSTR KEY_DEST_PATH = _T("DestPath");
+	constexpr LPCTSTR KEY_ENABLE_MOVE = _T("EnableMove");
+	constexpr LPCTSTR KEY_DRIVE_NAME = _T("DriveName");
+	constexpr LPCTSTR KEY_LIMIT_MODE = _T("LimitMode");
+	constexpr LPCTSTR KEY_LIMIT_VALUE = _T("LimitValue");
+	constexpr LPCTSTR KEY_END_VALUE = _T("EndValue");
+	constexpr LPCTSTR KEY_SCHEDULE_DAYS = _T("ScheduleDays");
+	constexpr LPCTSTR KEY_SCHEDULE_TIME = _T("ScheduleTime");
+	constexpr LPCTSTR LIMIT_MODE_SCHEDULE = _T("Schedule");
 
 	constexpr LPCTSTR ERROR_DUPLICATE_NAME = _T("'%s' 항목의 이름이 중복되었습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_ORIGIN_PATH = _T("'%s' 항목의 대상경로가 비어 있습니다.");
@@ -11,6 +22,8 @@ namespace
 	constexpr LPCTSTR ERROR_EMPTY_DRIVE_NAME = _T("'%s' 항목의 드라이브가 선택되지 않았습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_LIMIT_VALUE = _T("'%s' 항목의 용량 값이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_LIMIT_VALUE = _T("'%s' 항목의 용량 값은 1~100 사이의 숫자여야 합니다.");
+	constexpr LPCTSTR ERROR_EMPTY_END_VALUE = _T("'%s' 항목의 종료 용량 값이 비어 있습니다.");
+	constexpr LPCTSTR ERROR_INVALID_END_VALUE = _T("'%s' 항목의 종료 용량 값은 1~100 사이의 숫자여야 합니다.");
 	constexpr LPCTSTR ERROR_EMPTY_SCHEDULE_DAY = _T("'%s' 항목의 스케줄 요일이 선택되지 않았습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_SCHEDULE_TIME = _T("'%s' 항목의 스케줄 시간이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_SCHEDULE_TIME = _T("'%s' 항목의 스케줄 시간은 0800 형식의 올바른 4자리 시간이어야 합니다.");
@@ -29,6 +42,37 @@ namespace
 		return false;
 	}
 
+	CString GetTemplateValue(const CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey)
+	{
+		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+		{
+			if (paramTemplate.vecValue[i].strKey == lpszKey)
+			{
+				CString strValue = paramTemplate.vecValue[i].strValue;
+				strValue.Trim();
+				return strValue;
+			}
+		}
+
+		return _T("");
+	}
+
+	void SetTemplateValue(CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey, LPCTSTR lpszValue)
+	{
+		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+		{
+			if (paramTemplate.vecValue[i].strKey == lpszKey)
+			{
+				paramTemplate.vecValue[i].strValue = lpszValue;
+				return;
+			}
+		}
+
+		CParameter::PARAM_TEMPLATE_VALUE value;
+		value.strKey = lpszKey;
+		value.strValue = lpszValue;
+		paramTemplate.vecValue.push_back(value);
+	}
 
 	bool IsAllDigits(const CString& strValue)
 	{
@@ -85,12 +129,10 @@ namespace
 	}
 }
 
-CSetupDlg::CSetupDlg(CWnd* pParent, CParameter* pRuntimeParam,
-	const std::vector<CString>& vecAvailableDriveNames)
+CSetupDlg::CSetupDlg(CWnd* pParent, CParameter* pRuntimeParam)
 	: CDialogEx(IDD_SETUP_DIALOG, pParent)
 	, m_pScrollView(nullptr)
 	, m_pRuntimeParam(pRuntimeParam)
-	, m_vecAvailableDriveNames(vecAvailableDriveNames)
 {
 }
 
@@ -126,7 +168,6 @@ BOOL CSetupDlg::OnInitDialog()
 	pWndPos->ShowWindow(SW_HIDE);
 
 	m_pScrollView = new CListScrollView(ITEM_SETUP);
-	m_pScrollView->SetAvailableDriveNames(m_vecAvailableDriveNames);
 	if (m_pScrollView->Create(NULL, NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER,
 		rect, this, 50001))
 	{
@@ -240,7 +281,7 @@ BOOL CSetupDlg::SaveControlsToParameter(CString& strErrorMessage)
 
 		BuildTemplateValidationErrors(paramTemplate, vecErrors);
 
-		CParameter::SetTemplateValue(paramTemplate, CParameter::TemplateKey::NAME, paramTemplate.strName);
+		SetTemplateValue(paramTemplate, KEY_NAME, paramTemplate.strName);
 
 		m_param.m_vecTemplate.push_back(paramTemplate);
 	}
@@ -258,14 +299,15 @@ BOOL CSetupDlg::SaveControlsToParameter(CString& strErrorMessage)
 void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& paramTemplate, std::vector<CString>& vecErrors) const
 {
 	const CString strName = paramTemplate.strName;
-	const CString strOriginPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH);
-	const CString strDestPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH);
-	const CString strEnableMove = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE);
-	const CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
-	const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
-	const CString strLimitValue = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE);
-	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
-	const CString strScheduleTime = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME);
+	const CString strOriginPath = GetTemplateValue(paramTemplate, KEY_ORIGIN_PATH);
+	const CString strDestPath = GetTemplateValue(paramTemplate, KEY_DEST_PATH);
+	const CString strEnableMove = GetTemplateValue(paramTemplate, KEY_ENABLE_MOVE);
+	const CString strDriveName = GetTemplateValue(paramTemplate, KEY_DRIVE_NAME);
+	const CString strLimitMode = GetTemplateValue(paramTemplate, KEY_LIMIT_MODE);
+	const CString strLimitValue = GetTemplateValue(paramTemplate, KEY_LIMIT_VALUE);
+	const CString strEndValue = GetTemplateValue(paramTemplate, KEY_END_VALUE);
+	const CString strScheduleDays = GetTemplateValue(paramTemplate, KEY_SCHEDULE_DAYS);
+	const CString strScheduleTime = GetTemplateValue(paramTemplate, KEY_SCHEDULE_TIME);
 
 	if (strOriginPath.IsEmpty())
 	{
@@ -277,7 +319,7 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 		AddError(vecErrors, ERROR_EMPTY_DEST_PATH, strName);
 	}
 
-	if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)
+	if (strLimitMode == LIMIT_MODE_SCHEDULE)
 	{
 		if (strScheduleDays.IsEmpty())
 		{
@@ -295,11 +337,6 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	}
 	else
 	{
-		if (strDriveName.IsEmpty())
-		{
-			AddError(vecErrors, ERROR_EMPTY_DRIVE_NAME, strName);
-		}
-
 		if (strLimitValue.IsEmpty())
 		{
 			AddError(vecErrors, ERROR_EMPTY_LIMIT_VALUE, strName);
@@ -308,6 +345,15 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 		{
 			AddError(vecErrors, ERROR_INVALID_LIMIT_VALUE, strName);
 		}
+	}
+
+	if (strEndValue.IsEmpty())
+	{
+		AddError(vecErrors, ERROR_EMPTY_END_VALUE, strName);
+	}
+	else if (!IsAllDigits(strEndValue) || _ttoi(strEndValue) < 1 || _ttoi(strEndValue) > 100)
+	{
+		AddError(vecErrors, ERROR_INVALID_END_VALUE, strName);
 	}
 }
 

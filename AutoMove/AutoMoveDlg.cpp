@@ -292,7 +292,7 @@ void CAutoMoveDlg::AlignControls()
 
 void CAutoMoveDlg::OnBnClickedBtSystemOpen()
 {
-	CSetupDlg dlg(this, &m_pParam, m_vecAvailableDriveNames);
+	CSetupDlg dlg(this, &m_pParam);
 	if (dlg.DoModal() == IDOK)
 	{
 		ReloadPathItems();
@@ -471,24 +471,24 @@ void CAutoMoveDlg::StopDriveUsageThread()
 
 UINT CAutoMoveDlg::DriveUsageThreadProc(LPVOID pParam)
 {
-	CAutoMoveDlg* pView = reinterpret_cast<CAutoMoveDlg*>(pParam);
-	if (pView == nullptr)
+	CAutoMoveDlg* pDlg = reinterpret_cast<CAutoMoveDlg*>(pParam);
+	if (pDlg == nullptr)
 	{
 		return 0;
 	}
 
-	CDriveManager driveManager(pView->m_vecAvailableDriveNames);
+	CDriveManager driveManager(pDlg->m_vecAvailableDriveNames);
 
 	while (true)
 	{
-		if (WaitForSingleObject(pView->m_hDriveUsageStopEvent, 0) == WAIT_OBJECT_0)
+		if (WaitForSingleObject(pDlg->m_hDriveUsageStopEvent, 0) == WAIT_OBJECT_0)
 		{
 			return 0;
 		}
 
 		driveManager.CheckDriveUsage();
 
-		if (WaitForSingleObject(pView->m_hDriveUsageStopEvent, DRIVE_USAGE_CHECK_INTERVAL) == WAIT_OBJECT_0)
+		if (WaitForSingleObject(pDlg->m_hDriveUsageStopEvent, DRIVE_USAGE_CHECK_INTERVAL) == WAIT_OBJECT_0)
 		{
 			break;
 		}

@@ -23,11 +23,6 @@ CListScrollView::~CListScrollView()
 	ClearItems();
 }
 
-void CListScrollView::SetAvailableDriveNames(const std::vector<CString>& vecDriveNames)
-{
-	m_vecAvailableDriveNames = vecDriveNames;
-}
-
 void CListScrollView::OnInitialUpdate()
 {
 	CScrollView::OnInitialUpdate();
@@ -188,7 +183,7 @@ CDialogEx* CListScrollView::CreateItem()
 		nDialogID = IDD_PATHITEM_DIALOG;
 		break;
 	case ITEM_SETUP:
-		pItem = new CSetupItem(this, m_vecAvailableDriveNames);
+		pItem = new CSetupItem(this);
 		nDialogID = IDD_SETUPITEM_DIALOG;
 		break;
 	default:

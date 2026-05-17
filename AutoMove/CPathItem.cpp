@@ -8,6 +8,21 @@
 
 namespace
 {
+	CString GetTemplateValue(const CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey)
+	{
+		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+		{
+			if (paramTemplate.vecValue[i].strKey == lpszKey)
+			{
+				CString strValue = paramTemplate.vecValue[i].strValue;
+				strValue.Trim();
+				return strValue;
+			}
+		}
+
+		return _T("");
+	}
+
 	CString FormatScheduleTime(const CString& strScheduleTime)
 	{
 		if (strScheduleTime.GetLength() == 4)
@@ -23,19 +38,20 @@ namespace
 
 	CString FormatTemplateEventText(const CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
-		if (CParameter::IsScheduleLimitMode(paramTemplate))
+		const CString strLimitMode = GetTemplateValue(paramTemplate, _T("LimitMode"));
+		if (strLimitMode == _T("Schedule"))
 		{
 			CString strEvent;
 			strEvent.Format(_T("%s %s 이후"),
-				static_cast<LPCTSTR>(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS)),
-				static_cast<LPCTSTR>(FormatScheduleTime(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME))));
+				static_cast<LPCTSTR>(GetTemplateValue(paramTemplate, _T("ScheduleDays"))),
+				static_cast<LPCTSTR>(FormatScheduleTime(GetTemplateValue(paramTemplate, _T("ScheduleTime")))));
 			return strEvent;
 		}
 
 		CString strEvent;
 		strEvent.Format(_T("%s의 용량이 %s%% 이상"),
-			static_cast<LPCTSTR>(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME)),
-			static_cast<LPCTSTR>(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE)));
+			static_cast<LPCTSTR>(GetTemplateValue(paramTemplate, _T("DriveName"))),
+			static_cast<LPCTSTR>(GetTemplateValue(paramTemplate, _T("LimitValue"))));
 		return strEvent;
 	}
 }
@@ -52,6 +68,10 @@ CPathItem::CPathItem(CWnd* pParent, CString strPathName)
 	, m_bBlinkOn(TRUE)
 {
 	m_strPathName = strPathName;
+}
+
+CPathItem::~CPathItem()
+{
 }
 
 BOOL CPathItem::OnInitDialog()
@@ -73,7 +93,7 @@ void CPathItem::LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplate
 {
 	SetPathName(paramTemplate.strName);
 	SetEventText(FormatTemplateEventText(paramTemplate));
-	SetWaitingEvent(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::BOOT_START) == _T("1"));
+	SetWaitingEvent(GetTemplateValue(paramTemplate, _T("BootStart")) == _T("1"));
 	RefreshActControl();
 }
 
