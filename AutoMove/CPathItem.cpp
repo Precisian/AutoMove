@@ -176,7 +176,6 @@ void CPathItem::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CPathItem, CDialogEx)
 	ON_WM_MOUSEWHEEL()
     ON_WM_SIZE()
-	ON_WM_CTLCOLOR()
 	ON_WM_DRAWITEM()
 	ON_BN_CLICKED(IDC_BTN_PATHITEM_START, &CPathItem::OnBnClickedPathitemStart)
 	ON_BN_CLICKED(IDC_BTN_PATHITEM_STOP, &CPathItem::OnBnClickedPathitemStop)
@@ -269,11 +268,6 @@ void CPathItem::OnSize(UINT nType, int cx, int cy) {
 		ScreenToClient(&rectEvent);
 		pEvent->MoveWindow(rectEvent.left, rectEvent.top, max(0, nTextRight - rectEvent.left), rectEvent.Height());
 	}
-}
-
-HBRUSH CPathItem::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
-{
-	return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
 }
 
 void CPathItem::OnDrawItem(int nIDCtl, LPDRAWITEMSTRUCT lpDrawItemStruct)

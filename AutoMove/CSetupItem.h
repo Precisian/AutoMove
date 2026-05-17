@@ -19,11 +19,6 @@ public:
 	void SetBootStart(BOOL bBootStart);
 	BOOL IsBootStart() const;
 
-	CString m_strName;
-	CString m_strPath_Origin;
-	CString m_strPath_Dest;
-	bool m_bUseMove;
-
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_SETUPITEM_DIALOG };
