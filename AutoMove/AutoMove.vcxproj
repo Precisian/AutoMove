@@ -185,11 +185,13 @@
   <ItemGroup>
     <ClInclude Include="AutoMove.h" />
     <ClInclude Include="AutoMoveDlg.h" />
+    <ClInclude Include="CDriveManager.h" />
     <ClInclude Include="CParameter.h" />
     <ClInclude Include="CPathItem.h" />
     <ClInclude Include="CListScrollView.h" />
     <ClInclude Include="CSetupDlg.h" />
     <ClInclude Include="CSetupItem.h" />
+    <ClInclude Include="DriveInfo.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -198,6 +200,7 @@
   <ItemGroup>
     <ClCompile Include="AutoMove.cpp" />
     <ClCompile Include="AutoMoveDlg.cpp" />
+    <ClCompile Include="CDriveManager.cpp" />
     <ClCompile Include="CParameter.cpp" />
     <ClCompile Include="CPathItem.cpp" />
     <ClCompile Include="CListScrollView.cpp" />

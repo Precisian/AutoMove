@@ -7,6 +7,7 @@
 #include "AutoMoveDlg.h"
 #include "afxdialogex.h"
 #include "CPathItem.h"
+#include "CDriveManager.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -16,6 +17,7 @@ namespace
 {
 	constexpr UINT_PTR TIMER_PATHITEM_BLINK = 1;
 	constexpr UINT TIMER_PATHITEM_BLINK_INTERVAL = 1000;
+	constexpr DWORD DRIVE_USAGE_CHECK_INTERVAL = 60000;
 }
 
 
@@ -59,8 +61,15 @@ CAutoMoveDlg::CAutoMoveDlg(CWnd* pParent /*=nullptr*/)
 	, m_pScrollView(nullptr)
 	, m_bPathItemBlinkOn(TRUE)
 	, m_bPathItemBlinkTimerActive(FALSE)
+	, m_pDriveUsageThread(nullptr)
+	, m_hDriveUsageStopEvent(nullptr)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+}
+
+CAutoMoveDlg::~CAutoMoveDlg()
+{
+	StopDriveUsageThread();
 }
 
 void CAutoMoveDlg::DoDataExchange(CDataExchange* pDX)
@@ -120,6 +129,8 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	AlignControls();
 	SetTrayIcon();
 	m_pParam.Load();
+	LoadAvailableDriveNames();
+	StartDriveUsageThread();
 
 	// 1. Picture Control(IDC_STATIC_LIST_ITEM) 영역 좌표 가져오기
 	CRect rect;
@@ -204,6 +215,7 @@ void CAutoMoveDlg::OnBnClickedMainExit()
 	if (ret == IDYES)
 	{
 		KillTimer(TIMER_PATHITEM_BLINK);
+		StopDriveUsageThread();
 		EndDialog(IDOK);
 	}
 }
@@ -402,6 +414,87 @@ BOOL CAutoMoveDlg::HasBlinkingPathItem() const
 	}
 
 	return FALSE;
+}
+
+void CAutoMoveDlg::LoadAvailableDriveNames()
+{
+	CDriveManager driveManager;
+	driveManager.LoadAvailableDrives();
+	m_vecAvailableDriveNames = driveManager.GetDriveNames();
+}
+
+void CAutoMoveDlg::StartDriveUsageThread()
+{
+	if (m_pDriveUsageThread != nullptr || m_vecAvailableDriveNames.empty())
+	{
+		return;
+	}
+
+	m_hDriveUsageStopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	if (m_hDriveUsageStopEvent == nullptr)
+	{
+		return;
+	}
+
+	m_pDriveUsageThread = AfxBeginThread(DriveUsageThreadProc, this, THREAD_PRIORITY_NORMAL, 0, CREATE_SUSPENDED);
+	if (m_pDriveUsageThread == nullptr)
+	{
+		CloseHandle(m_hDriveUsageStopEvent);
+		m_hDriveUsageStopEvent = nullptr;
+		return;
+	}
+
+	m_pDriveUsageThread->m_bAutoDelete = FALSE;
+	m_pDriveUsageThread->ResumeThread();
+}
+
+void CAutoMoveDlg::StopDriveUsageThread()
+{
+	if (m_hDriveUsageStopEvent != nullptr)
+	{
+		SetEvent(m_hDriveUsageStopEvent);
+	}
+
+	if (m_pDriveUsageThread != nullptr)
+	{
+		WaitForSingleObject(m_pDriveUsageThread->m_hThread, INFINITE);
+		delete m_pDriveUsageThread;
+		m_pDriveUsageThread = nullptr;
+	}
+
+	if (m_hDriveUsageStopEvent != nullptr)
+	{
+		CloseHandle(m_hDriveUsageStopEvent);
+		m_hDriveUsageStopEvent = nullptr;
+	}
+}
+
+UINT CAutoMoveDlg::DriveUsageThreadProc(LPVOID pParam)
+{
+	CAutoMoveDlg* pDlg = reinterpret_cast<CAutoMoveDlg*>(pParam);
+	if (pDlg == nullptr)
+	{
+		return 0;
+	}
+
+	CDriveManager driveManager(pDlg->m_vecAvailableDriveNames);
+
+	while (true)
+	{
+		if (WaitForSingleObject(pDlg->m_hDriveUsageStopEvent, 0) == WAIT_OBJECT_0)
+		{
+			return 0;
+		}
+
+		driveManager.CheckDriveUsage();
+
+		if (WaitForSingleObject(pDlg->m_hDriveUsageStopEvent, DRIVE_USAGE_CHECK_INTERVAL) == WAIT_OBJECT_0)
+		{
+			break;
+		}
+	}
+
+	return 0;
 }
 
 // 트레이 아이콘 메시지 처리

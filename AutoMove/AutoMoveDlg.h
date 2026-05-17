@@ -14,6 +14,7 @@ class CAutoMoveDlg : public CDialogEx
 // 생성입니다.
 public:
 	CAutoMoveDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
+	virtual ~CAutoMoveDlg();
 	NOTIFYICONDATA m_nId; // 트레이 아이콘 구조체
 
 // 대화 상자 데이터입니다.
@@ -41,6 +42,9 @@ public:
 	CParameter m_pParam;
 	BOOL m_bPathItemBlinkOn;
 	BOOL m_bPathItemBlinkTimerActive;
+	std::vector<CString> m_vecAvailableDriveNames;
+	CWinThread* m_pDriveUsageThread;
+	HANDLE m_hDriveUsageStopEvent;
 
 	void AlignControls();
 	void SetTrayIcon();
@@ -48,6 +52,10 @@ public:
 	void NotifyPathItemBlink();
 	void UpdatePathItemBlinkTimer();
 	BOOL HasBlinkingPathItem() const;
+	void LoadAvailableDriveNames();
+	void StartDriveUsageThread();
+	void StopDriveUsageThread();
+	static UINT DriveUsageThreadProc(LPVOID pParam);
 
 	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 	afx_msg void OnBnClickedBtSystemOpen();
