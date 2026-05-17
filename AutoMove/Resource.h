@@ -1,6 +1,6 @@
-Ôªø//{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ÏóêÏÑú ÏÉùÏÑ±Ìïú Ìè¨Ìï® ÌååÏùºÏûÖÎãàÎã§.
-// AutoMove.rcÏóêÏÑú ÏÇ¨Ïö©ÎêòÍ≥† ÏûàÏäµÎãàÎã§.
+//{{NO_DEPENDENCIES}}
+// Microsoft Visual C++ø°º≠ ª˝º∫«— ∆˜«‘ ∆ƒ¿œ¿‘¥œ¥Ÿ.
+// AutoMove.rcø°º≠ ªÁøÎµ«∞Ì ¿÷Ω¿¥œ¥Ÿ.
 //
 #define IDM_ABOUTBOX                    0x0010
 #define IDD_ABOUTBOX                    100
@@ -19,12 +19,10 @@
 #define IDC_BTN_SETUP_OPEN              1005
 #define IDC_BTN_MAIN_ALL_START          1007
 #define IDC_BTN_MAIN_ALL_STOP           1008
-#define IDC_BTN_MAIN_TEST               1009
 #define IDC_BTN_PATHITEM_START          1010
 #define IDC_BTN_PATHITEM_STOP           1011
 #define IDC_STATIC_PATHITEM_NAME        1012
 #define IDC_STATIC_PATHITEM_ACT         1013
-#define IDC_STATIC_PATHITEM_STATUS      1014
 #define IDC_STATIC_MAIN_LIST            1016
 #define IDC_STATIC_SETUP_LIST           1021
 #define IDC_CK_SETUP_AUTOSTART          1022
@@ -37,17 +35,11 @@
 #define IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE 1029
 #define IDC_EDIT_SETUPITEM_LIMIT_VALUE  1030
 #define IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS 1033
-#define IDC_EDIT2                       1034
 #define IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME 1034
 #define IDC_CK_SETUPITEM_BOOTSTART      1036
 #define IDC_BTN_SETUP_TESTSTART         1037
 #define IDC_STATIC_PATHITEM_EVENT       1038
-#define IDC_EDIT_SETUP_END              1039
 #define IDC_EDIT_SETUPITEM_END_VALUE    1039
-#define ID_32771                        32771
-#define ID_32772                        32772
-#define ID_32773                        32773
-#define ID_SYSTEM_32774                 32774
 #define ID_TRAY_OPEN                    32775
 #define ID_TRAY_EXIT                    32776
 

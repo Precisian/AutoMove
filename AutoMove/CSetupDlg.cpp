@@ -8,7 +8,6 @@ namespace
 	constexpr LPCTSTR KEY_ORIGIN_PATH = _T("OriginPath");
 	constexpr LPCTSTR KEY_DEST_PATH = _T("DestPath");
 	constexpr LPCTSTR KEY_ENABLE_MOVE = _T("EnableMove");
-	constexpr LPCTSTR KEY_DRIVE_NAME = _T("DriveName");
 	constexpr LPCTSTR KEY_LIMIT_MODE = _T("LimitMode");
 	constexpr LPCTSTR KEY_LIMIT_VALUE = _T("LimitValue");
 	constexpr LPCTSTR KEY_END_VALUE = _T("EndValue");
@@ -19,7 +18,6 @@ namespace
 	constexpr LPCTSTR ERROR_DUPLICATE_NAME = _T("'%s' 항목의 이름이 중복되었습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_ORIGIN_PATH = _T("'%s' 항목의 대상경로가 비어 있습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_DEST_PATH = _T("'%s' 항목의 이동경로가 비어 있습니다.");
-	constexpr LPCTSTR ERROR_EMPTY_DRIVE_NAME = _T("'%s' 항목의 드라이브가 선택되지 않았습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_LIMIT_VALUE = _T("'%s' 항목의 용량 값이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_LIMIT_VALUE = _T("'%s' 항목의 용량 값은 1~100 사이의 숫자여야 합니다.");
 	constexpr LPCTSTR ERROR_EMPTY_END_VALUE = _T("'%s' 항목의 종료 용량 값이 비어 있습니다.");
@@ -302,7 +300,6 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	const CString strOriginPath = GetTemplateValue(paramTemplate, KEY_ORIGIN_PATH);
 	const CString strDestPath = GetTemplateValue(paramTemplate, KEY_DEST_PATH);
 	const CString strEnableMove = GetTemplateValue(paramTemplate, KEY_ENABLE_MOVE);
-	const CString strDriveName = GetTemplateValue(paramTemplate, KEY_DRIVE_NAME);
 	const CString strLimitMode = GetTemplateValue(paramTemplate, KEY_LIMIT_MODE);
 	const CString strLimitValue = GetTemplateValue(paramTemplate, KEY_LIMIT_VALUE);
 	const CString strEndValue = GetTemplateValue(paramTemplate, KEY_END_VALUE);
