@@ -35,6 +35,7 @@ protected:
 	afx_msg void OnBnClickedRadioLimitSchedule();
 	afx_msg void OnBnClickedCheckEnableMove();
 	afx_msg void OnBnClickedBtnSetupitemRemove();
+	afx_msg void OnEnChangeEditOriginPath();
 	afx_msg void OnEnChangeEditLimitValue();
 	afx_msg void OnEnChangeEditEndValue();
 	afx_msg void OnEnChangeEditScheduleTime();
@@ -44,7 +45,11 @@ protected:
 private:
 	void UpdateLimitControls();
 	void UpdateMoveControls();
+	void UpdateDriveNameFromTargetPath();
+	CString ParseDriveNameFromPath(const CString& strPath) const;
 	void NormalizeNumericEdit(UINT nControlID, int nMaxLength);
 	CWnd* FindGroupBox(LPCTSTR lpszText);
 	CWnd* FindChildByText(LPCTSTR lpszText);
+
+	CString m_strDriveName;
 };

@@ -57,6 +57,9 @@
     <ClInclude Include="DriveInfo.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Dialog\CDriveUsageItem.h">
+      <Filter>Dialog</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AutoMove.cpp">
@@ -84,6 +87,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="CSetupItem.cpp">
+      <Filter>Dialog</Filter>
+    </ClCompile>
+    <ClCompile Include="Dialog\CDriveUsageItem.cpp">
       <Filter>Dialog</Filter>
     </ClCompile>
   </ItemGroup>

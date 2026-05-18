@@ -6,12 +6,12 @@
 #define IDD_ABOUTBOX                    100
 #define IDS_ABOUTBOX                    101
 #define IDD_AUTOMOVE_DIALOG             102
-#define IDD_MAIN_DIALOG                 102
 #define IDR_MAINFRAME                   128
 #define IDD_SETUP_DIALOG                129
 #define IDD_PATHITEM_DIALOG             132
 #define IDD_SETUPITEM_DIALOG            133
 #define IDR_MENU_TRAY                   136
+#define IDD_DRIVEUSAGEITEM_DIALOG       137
 #define IDC_BTN_SYSTEM_EXIT             1000
 #define IDC_BTN_SYSTEM_SAVE             1001
 #define IDC_BTN_SYSTEM_ADDITEM          1002
@@ -40,6 +40,12 @@
 #define IDC_BTN_SETUP_TESTSTART         1037
 #define IDC_STATIC_PATHITEM_EVENT       1038
 #define IDC_EDIT_SETUPITEM_END_VALUE    1039
+#define IDC_STATIC_MAIN_DRIVE_USAGE_TITLE 1040
+#define IDC_CHECK1                      1041
+#define IDC_STATIC_SETUPITEM_DRIVENAME  1042
+#define IDC_STATIC_DRIVEUSAGE_NAME      1043
+#define IDC_PROGRESS_DRIVEUSAGE         1044
+#define IDC_STATIC_DRIVEUSAGE_PERCENT   1045
 #define ID_TRAY_OPEN                    32775
 #define ID_TRAY_EXIT                    32776
 
@@ -47,9 +53,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        137
+#define _APS_NEXT_RESOURCE_VALUE        138
 #define _APS_NEXT_COMMAND_VALUE         32777
-#define _APS_NEXT_CONTROL_VALUE         1040
+#define _APS_NEXT_CONTROL_VALUE         1046
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

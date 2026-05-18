@@ -18,6 +18,13 @@ namespace
 	constexpr UINT_PTR TIMER_PATHITEM_BLINK = 1;
 	constexpr UINT TIMER_PATHITEM_BLINK_INTERVAL = 1000;
 	constexpr DWORD DRIVE_USAGE_CHECK_INTERVAL = 60000;
+	constexpr int DRIVE_USAGE_GROUP_TOP_PADDING = 18;
+	constexpr int DRIVE_USAGE_GROUP_BOTTOM_PADDING = 8;
+	constexpr int DRIVE_USAGE_GROUP_INSET_X = 10;
+	constexpr int DRIVE_USAGE_ITEM_HEIGHT = 18;
+	constexpr int DRIVE_USAGE_ITEM_GAP = 5;
+	constexpr int DRIVE_USAGE_BOTTOM_GAP = 8;
+	constexpr int DRIVE_USAGE_ITEM_ID_BASE = 60000;
 }
 
 
@@ -70,6 +77,7 @@ CAutoMoveDlg::CAutoMoveDlg(CWnd* pParent /*=nullptr*/)
 CAutoMoveDlg::~CAutoMoveDlg()
 {
 	StopDriveUsageThread();
+	DestroyDriveUsageControls();
 }
 
 void CAutoMoveDlg::DoDataExchange(CDataExchange* pDX)
@@ -90,6 +98,9 @@ BEGIN_MESSAGE_MAP(CAutoMoveDlg, CDialogEx)
 	ON_COMMAND(ID_TRAY_OPEN, &CAutoMoveDlg::OnTrayOpen)
 	ON_COMMAND(ID_TRAY_EXIT, &CAutoMoveDlg::OnTrayExit)
 	ON_MESSAGE(WM_PATHITEM_STATE_CHANGED, &CAutoMoveDlg::OnPathItemStateChanged)
+	ON_MESSAGE(WM_DRIVE_USAGE_UPDATED, &CAutoMoveDlg::OnDriveUsageUpdated)
+	ON_BN_CLICKED(IDC_BTN_MAIN_ALL_START, &CAutoMoveDlg::OnBnClickedBtnMainAllStart)
+	ON_BN_CLICKED(IDC_BTN_MAIN_ALL_STOP, &CAutoMoveDlg::OnBnClickedBtnMainAllStop)
 END_MESSAGE_MAP()
 
 
@@ -126,10 +137,12 @@ BOOL CAutoMoveDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	EnableDynamicLayout(TRUE);
-	AlignControls();
 	SetTrayIcon();
 	m_pParam.Load();
 	LoadAvailableDriveNames();
+	CreateDriveUsageControls();
+	UpdateFixedWindowSize();
+	AlignControls();
 	StartDriveUsageThread();
 
 	// 1. Picture Control(IDC_STATIC_LIST_ITEM) 영역 좌표 가져오기
@@ -223,11 +236,12 @@ void CAutoMoveDlg::OnBnClickedMainExit()
 
 void CAutoMoveDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
-	// 예: 창 크기를 800x600으로 완전히 고정하고 싶을 때
+	const int nFixedHeight = GetFixedWindowHeight();
+
 	lpMMI->ptMinTrackSize.x = 400; // 최소 가로
-	lpMMI->ptMinTrackSize.y = 300; // 최소 세로
+	lpMMI->ptMinTrackSize.y = nFixedHeight; // 최소 세로
 	lpMMI->ptMaxTrackSize.x = 400; // 최대 가로
-	lpMMI->ptMaxTrackSize.y = 300; // 최대 세로
+	lpMMI->ptMaxTrackSize.y = nFixedHeight; // 최대 세로
 
 	CDialogEx::OnGetMinMaxInfo(lpMMI);
 }
@@ -236,39 +250,83 @@ void CAutoMoveDlg::AlignControls()
 {
 	CRect rectClient;
 	GetClientRect(&rectClient);
-	int cx = rectClient.Width();
+	const int cx = rectClient.Width();
 
 	// 1. 컨트롤 가져오기
-	CWnd* pBtnClose = GetDlgItem(IDC_BTN_MAIN_EXIT);    // 가장 우측 버튼 (1번)
-	CWnd* pBtnSetup = GetDlgItem(IDC_BTN_SETUP_OPEN); // 그 옆의 버튼 (2번)
+	CWnd* pBtnClose = GetDlgItem(IDC_BTN_MAIN_EXIT);
+	CWnd* pBtnSetup = GetDlgItem(IDC_BTN_SETUP_OPEN);
+	CWnd* pBtnAllStart = GetDlgItem(IDC_BTN_MAIN_ALL_START);
+	CWnd* pBtnAllStop = GetDlgItem(IDC_BTN_MAIN_ALL_STOP);
+	CWnd* pDriveUsageGroup = GetDlgItem(IDC_STATIC_MAIN_DRIVE_USAGE_TITLE);
 	CWnd* pPic = GetDlgItem(IDC_STATIC_MAIN_LIST);
 
-	int firstBtnX = 0; // 두 번째 버튼의 기준점이 될 좌표
+	const int LEFT_MARGIN = 7;
 	const int RIGHT_MARGIN = 10; // 우측 끝단 마진
 	const int BOTTOM_MARGIN = 10; // 하단 마진
-	const int ELEMENT_GAP = 10;  // 버튼 사이의 간격
+	const int SECTION_GAP = 8;
 
-	// 2. 가장 우측 버튼(Close) 정렬
-	
+	int nTopAreaBottom = 0;
+
+	// 2. 우측 버튼만 X 위치를 맞추고, 크기와 Y 위치는 리소스 값을 그대로 사용합니다.
+	if (pBtnSetup && pBtnSetup->GetSafeHwnd()) {
+		CRect rSetup;
+		pBtnSetup->GetWindowRect(&rSetup);
+		ScreenToClient(&rSetup);
+		pBtnSetup->MoveWindow(cx - rSetup.Width() - RIGHT_MARGIN, rSetup.top, rSetup.Width(), rSetup.Height());
+		nTopAreaBottom = max(nTopAreaBottom, rSetup.bottom);
+	}
 	if (pBtnClose && pBtnClose->GetSafeHwnd()) {
-		CRect r;
-		pBtnClose->GetWindowRect(&r);
-		ScreenToClient(&r);
-
-		// 우측 끝에서 마진만큼 띄움
-		firstBtnX = cx - r.Width() - RIGHT_MARGIN;
-		pBtnClose->MoveWindow(firstBtnX, r.top, r.Width(), r.Height());
+		CRect rClose;
+		pBtnClose->GetWindowRect(&rClose);
+		ScreenToClient(&rClose);
+		pBtnClose->MoveWindow(cx - rClose.Width() - RIGHT_MARGIN, rClose.top, rClose.Width(), rClose.Height());
+		nTopAreaBottom = max(nTopAreaBottom, rClose.bottom);
+	}
+	if (pBtnAllStart && pBtnAllStart->GetSafeHwnd()) {
+		CRect rAllStart;
+		pBtnAllStart->GetWindowRect(&rAllStart);
+		ScreenToClient(&rAllStart);
+		nTopAreaBottom = max(nTopAreaBottom, rAllStart.bottom);
+	}
+	if (pBtnAllStop && pBtnAllStop->GetSafeHwnd()) {
+		CRect rAllStop;
+		pBtnAllStop->GetWindowRect(&rAllStop);
+		ScreenToClient(&rAllStop);
+		nTopAreaBottom = max(nTopAreaBottom, rAllStop.bottom);
 	}
 
-	// 3. 두 번째 버튼(System) 정렬 - 동일 마진 적용
-	if (pBtnSetup && pBtnSetup->GetSafeHwnd()) {
-		CRect r;
-		pBtnSetup->GetWindowRect(&r);
-		ScreenToClient(&r);
+	// 3. 드라이브 용량 Progress Bar 영역 정렬
+	int nListTop = nTopAreaBottom + SECTION_GAP;
+	if (pDriveUsageGroup != nullptr && pDriveUsageGroup->GetSafeHwnd())
+	{
+		pDriveUsageGroup->ShowWindow(m_vecDriveUsageItems.empty() ? SW_HIDE : SW_SHOW);
+	}
 
-		// 첫 번째 버튼의 시작점(firstBtnX)에서 간격과 자신의 너비를 뺌
-		firstBtnX = cx - r.Width() - RIGHT_MARGIN;
-		pBtnSetup->MoveWindow(firstBtnX, r.top, r.Width(), r.Height());
+	if (!m_vecDriveUsageItems.empty())
+	{
+		const int nGroupLeft = LEFT_MARGIN;
+		const int nGroupTop = nListTop;
+		const int nGroupWidth = cx - LEFT_MARGIN - RIGHT_MARGIN;
+		const int nRowLeft = nGroupLeft + DRIVE_USAGE_GROUP_INSET_X;
+		const int nItemWidth = max(20, nGroupWidth - (DRIVE_USAGE_GROUP_INSET_X * 2));
+		const int nGroupHeight = GetDriveUsageHeightDelta() - DRIVE_USAGE_BOTTOM_GAP;
+
+		if (pDriveUsageGroup != nullptr && pDriveUsageGroup->GetSafeHwnd())
+		{
+			pDriveUsageGroup->MoveWindow(nGroupLeft, nGroupTop, nGroupWidth, nGroupHeight);
+		}
+
+		for (int i = 0; i < static_cast<int>(m_vecDriveUsageItems.size()); ++i)
+		{
+			CDriveUsageItem* pItem = m_vecDriveUsageItems[i];
+			if (pItem != nullptr && pItem->GetSafeHwnd())
+			{
+				const int nTop = nGroupTop + DRIVE_USAGE_GROUP_TOP_PADDING + i * (DRIVE_USAGE_ITEM_HEIGHT + DRIVE_USAGE_ITEM_GAP);
+				pItem->MoveWindow(nRowLeft, nTop, nItemWidth, DRIVE_USAGE_ITEM_HEIGHT);
+			}
+		}
+
+		nListTop += nGroupHeight + DRIVE_USAGE_BOTTOM_GAP;
 	}
 
 	// 4. Picture Control 및 스크롤뷰 영역 업데이트
@@ -276,6 +334,8 @@ void CAutoMoveDlg::AlignControls()
 		CRect rPic;
 		pPic->GetWindowRect(&rPic);
 		ScreenToClient(&rPic);
+		rPic.left = LEFT_MARGIN;
+		rPic.top = nListTop;
 
 		// 우측 끝 마진에 맞게 너비 조절
 		int newPicWidth = cx - rPic.left - RIGHT_MARGIN;
@@ -420,7 +480,121 @@ void CAutoMoveDlg::LoadAvailableDriveNames()
 {
 	CDriveManager driveManager;
 	driveManager.LoadAvailableDrives();
+	driveManager.CheckDriveUsage();
 	m_vecAvailableDriveNames = driveManager.GetDriveNames();
+	m_vecDriveInfos = driveManager.GetDriveInfos();
+}
+
+void CAutoMoveDlg::CreateDriveUsageControls()
+{
+	DestroyDriveUsageControls();
+
+	for (int i = 0; i < static_cast<int>(m_vecDriveInfos.size()); ++i)
+	{
+		const DRIVE_INFO& driveInfo = m_vecDriveInfos[i];
+		CDriveUsageItem* pItem = new CDriveUsageItem(this);
+		if (!pItem->Create(IDD_DRIVEUSAGEITEM_DIALOG, this))
+		{
+			delete pItem;
+			continue;
+		}
+
+		pItem->SetDlgCtrlID(DRIVE_USAGE_ITEM_ID_BASE + i);
+		pItem->SetDriveInfo(driveInfo);
+		pItem->ShowWindow(SW_SHOW);
+		m_vecDriveUsageItems.push_back(pItem);
+	}
+}
+
+void CAutoMoveDlg::DestroyDriveUsageControls()
+{
+	for (int i = 0; i < static_cast<int>(m_vecDriveUsageItems.size()); ++i)
+	{
+		CDriveUsageItem* pItem = m_vecDriveUsageItems[i];
+		if (pItem != nullptr)
+		{
+			if (pItem->GetSafeHwnd())
+			{
+				pItem->DestroyWindow();
+			}
+			delete pItem;
+		}
+	}
+
+	m_vecDriveUsageItems.clear();
+}
+
+void CAutoMoveDlg::UpdateDriveUsageControls(const std::vector<DRIVE_INFO>& vecDriveInfos)
+{
+	m_vecDriveInfos = vecDriveInfos;
+
+	for (int i = 0; i < static_cast<int>(m_vecDriveUsageItems.size()); ++i)
+	{
+		CDriveUsageItem* pItem = m_vecDriveUsageItems[i];
+		if (pItem == nullptr)
+		{
+			continue;
+		}
+
+		for (int j = 0; j < static_cast<int>(vecDriveInfos.size()); ++j)
+		{
+			const DRIVE_INFO& driveInfo = vecDriveInfos[j];
+			if (pItem->GetDriveName().CompareNoCase(driveInfo.strDriveName) != 0)
+			{
+				continue;
+			}
+
+			pItem->SetDriveInfo(driveInfo);
+			break;
+		}
+	}
+}
+
+int CAutoMoveDlg::GetDriveUsageHeightDelta() const
+{
+	if (m_vecDriveUsageItems.empty())
+	{
+		return 0;
+	}
+
+	const int nDriveCount = static_cast<int>(m_vecDriveUsageItems.size());
+	const int nRowGapTotal = max(0, nDriveCount - 1) * DRIVE_USAGE_ITEM_GAP;
+	return DRIVE_USAGE_GROUP_TOP_PADDING
+		+ nDriveCount * DRIVE_USAGE_ITEM_HEIGHT
+		+ nRowGapTotal
+		+ DRIVE_USAGE_GROUP_BOTTOM_PADDING
+		+ DRIVE_USAGE_BOTTOM_GAP;
+}
+
+int CAutoMoveDlg::GetFixedWindowHeight() const
+{
+	return 300 + GetDriveUsageHeightDelta();
+}
+
+void CAutoMoveDlg::UpdateFixedWindowSize()
+{
+	if (!GetSafeHwnd())
+	{
+		return;
+	}
+
+	CRect rectWindow;
+	GetWindowRect(&rectWindow);
+	SetWindowPos(nullptr, 0, 0, 400, GetFixedWindowHeight(), SWP_NOMOVE | SWP_NOZORDER);
+}
+
+LRESULT CAutoMoveDlg::OnDriveUsageUpdated(WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(wParam);
+
+	std::vector<DRIVE_INFO>* pDriveInfos = reinterpret_cast<std::vector<DRIVE_INFO>*>(lParam);
+	if (pDriveInfos != nullptr)
+	{
+		UpdateDriveUsageControls(*pDriveInfos);
+		delete pDriveInfos;
+	}
+
+	return 0;
 }
 
 void CAutoMoveDlg::StartDriveUsageThread()
@@ -487,6 +661,11 @@ UINT CAutoMoveDlg::DriveUsageThreadProc(LPVOID pParam)
 		}
 
 		driveManager.CheckDriveUsage();
+		std::vector<DRIVE_INFO>* pDriveInfos = new std::vector<DRIVE_INFO>(driveManager.GetDriveInfos());
+		if (!pDlg->PostMessage(WM_DRIVE_USAGE_UPDATED, 0, reinterpret_cast<LPARAM>(pDriveInfos)))
+		{
+			delete pDriveInfos;
+		}
 
 		if (WaitForSingleObject(pDlg->m_hDriveUsageStopEvent, DRIVE_USAGE_CHECK_INTERVAL) == WAIT_OBJECT_0)
 		{
@@ -528,4 +707,14 @@ void CAutoMoveDlg::OnTrayExit()
 {
 	Shell_NotifyIcon(NIM_DELETE, &m_nId); // 중요: 종료 시 아이콘 제거
 	OnBnClickedMainExit();
+}
+
+void CAutoMoveDlg::OnBnClickedBtnMainAllStart()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+}
+
+void CAutoMoveDlg::OnBnClickedBtnMainAllStop()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 }
