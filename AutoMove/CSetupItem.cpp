@@ -1,4 +1,4 @@
-Ôªø// CSetupItem.cpp: Íµ¨ÌòÑ ÌååÏùº
+// CSetupItem.cpp: ±∏«ˆ ∆ƒ¿œ
 //
 
 #include "pch.h"
@@ -7,46 +7,9 @@
 #include "CSetupItem.h"
 #include "CListScrollView.h"
 
-namespace
-{
-	constexpr LPCTSTR KEY_NAME = _T("Name");
-	constexpr LPCTSTR KEY_ORIGIN_PATH = _T("OriginPath");
-	constexpr LPCTSTR KEY_DEST_PATH = _T("DestPath");
-	constexpr LPCTSTR KEY_ENABLE_MOVE = _T("EnableMove");
-	constexpr LPCTSTR KEY_BOOT_START = _T("BootStart");
-	constexpr LPCTSTR KEY_DRIVE_NAME = _T("DriveName");
-	constexpr LPCTSTR KEY_LIMIT_MODE = _T("LimitMode");
-	constexpr LPCTSTR KEY_LIMIT_VALUE = _T("LimitValue");
-	constexpr LPCTSTR KEY_END_VALUE = _T("EndValue");
-	constexpr LPCTSTR KEY_SCHEDULE_DAYS = _T("ScheduleDays");
-	constexpr LPCTSTR KEY_SCHEDULE_TIME = _T("ScheduleTime");
-	constexpr LPCTSTR LIMIT_MODE_STORAGE = _T("Storage");
-	constexpr LPCTSTR LIMIT_MODE_SCHEDULE = _T("Schedule");
-
-	CString FindTemplateValue(const CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey, LPCTSTR lpszDefault = _T(""))
-	{
-		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
-		{
-			if (paramTemplate.vecValue[i].strKey == lpszKey)
-			{
-				return paramTemplate.vecValue[i].strValue;
-			}
-		}
-
-		return lpszDefault;
-	}
-
-	void AddTemplateValue(CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey, const CString& strValue)
-	{
-		CParameter::PARAM_TEMPLATE_VALUE value;
-		value.strKey = lpszKey;
-		value.strValue = strValue;
-		paramTemplate.vecValue.push_back(value);
-	}
-}
 
 
-// CSetupItem ÎåÄÌôî ÏÉÅÏûê
+// CSetupItem ¥Î»≠ ªÛ¿⁄
 
 IMPLEMENT_DYNAMIC(CSetupItem, CDialogEx)
 
@@ -100,6 +63,7 @@ BEGIN_MESSAGE_MAP(CSetupItem, CDialogEx)
 	ON_BN_CLICKED(IDC_RADIO_SETUPITEM_LIMIT_STORAGE, &CSetupItem::OnBnClickedRadioLimitStorage)
 	ON_BN_CLICKED(IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE, &CSetupItem::OnBnClickedRadioLimitSchedule)
 	ON_BN_CLICKED(IDC_BTN_SETUPITEM_REMOVE, &CSetupItem::OnBnClickedBtnSetupitemRemove)
+	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_PATH_ORIGIN, &CSetupItem::OnEnChangeEditOriginPath)
 	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_LIMIT_VALUE, &CSetupItem::OnEnChangeEditLimitValue)
 	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_END_VALUE, &CSetupItem::OnEnChangeEditEndValue)
 	ON_EN_CHANGE(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, &CSetupItem::OnEnChangeEditScheduleTime)
@@ -138,6 +102,7 @@ BOOL CSetupItem::OnInitDialog()
 
 	UpdateLimitControls();
 	UpdateMoveControls();
+	UpdateDriveNameFromTargetPath();
 	return TRUE;
 }
 
@@ -166,14 +131,14 @@ void CSetupItem::AlignControls()
 	CWnd* pBtnRemove = GetDlgItem(IDC_BTN_SETUPITEM_REMOVE);
 	CWnd* pEditOrigin = GetDlgItem(IDC_EDIT_SETUPITEM_PATH_ORIGIN);
 	CWnd* pEditDest = GetDlgItem(IDC_EDIT_SETUPITEM_PATH_DEST);
-	CWnd* pGroupStorage = FindGroupBox(_T("Ïö©Îüâ Ï†úÌïú"));
-	CWnd* pGroupSchedule = FindGroupBox(_T("Ïä§ÏºÄÏ§Ñ"));
-	CWnd* pGroupEnd = FindGroupBox(_T("Ï¢ÖÎ£åÏ°∞Í±¥"));
+	CWnd* pGroupStorage = FindGroupBox(_T("øÎ∑Æ ¡¶«—"));
+	CWnd* pGroupSchedule = FindGroupBox(_T("Ω∫ƒ…¡Ÿ"));
+	CWnd* pGroupEnd = FindGroupBox(_T("¡æ∑·¡∂∞«"));
 	CWnd* pComboScheduleDays = GetDlgItem(IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS);
 	CWnd* pEditScheduleTime = GetDlgItem(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME);
-	CWnd* pTextScheduleAfter = FindChildByText(_T("Ïù¥ÌõÑÏóê Ïã§Ìñâ"));
+	CWnd* pTextScheduleAfter = FindChildByText(_T("¿Ã»ƒø° Ω««‡"));
 	CWnd* pEditEndValue = GetDlgItem(IDC_EDIT_SETUPITEM_END_VALUE);
-	CWnd* pTextEndAfter = FindChildByText(_T("% ÎØ∏Îßå Ïãú Ï¢ÖÎ£å"));
+	CWnd* pTextEndAfter = FindChildByText(_T("% πÃ∏∏ Ω√ ¡æ∑·"));
 
 	if (pBtnRemove == nullptr || !pBtnRemove->GetSafeHwnd())
 	{
@@ -277,32 +242,33 @@ void CSetupItem::AlignControls()
 
 void CSetupItem::LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplate)
 {
-	SetDlgItemText(IDC_EDIT_SETUPITEM_NAME, FindTemplateValue(paramTemplate, KEY_NAME, paramTemplate.strName));
-	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, FindTemplateValue(paramTemplate, KEY_ORIGIN_PATH));
-	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_DEST, FindTemplateValue(paramTemplate, KEY_DEST_PATH));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_NAME, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::NAME, paramTemplate.strName));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_DEST, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH));
 	CheckDlgButton(IDC_CK_SETUPITEM_ENABLEMOVE,
-		FindTemplateValue(paramTemplate, KEY_ENABLE_MOVE, _T("0")) == _T("1") ? BST_CHECKED : BST_UNCHECKED);
+		CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE, _T("0")) == _T("1") ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButton(IDC_CK_SETUPITEM_BOOTSTART,
-		FindTemplateValue(paramTemplate, KEY_BOOT_START, _T("0")) == _T("1") ? BST_CHECKED : BST_UNCHECKED);
+		CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::BOOT_START, _T("0")) == _T("1") ? BST_CHECKED : BST_UNCHECKED);
 
-	const CString strLimitMode = FindTemplateValue(paramTemplate, KEY_LIMIT_MODE, LIMIT_MODE_STORAGE);
+	const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE, CParameter::TemplateKey::LIMIT_MODE_STORAGE);
 	CheckRadioButton(IDC_RADIO_SETUPITEM_LIMIT_STORAGE, IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE,
-		strLimitMode == LIMIT_MODE_SCHEDULE ? IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE : IDC_RADIO_SETUPITEM_LIMIT_STORAGE);
+		strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE ? IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE : IDC_RADIO_SETUPITEM_LIMIT_STORAGE);
 
-	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, FindTemplateValue(paramTemplate, KEY_LIMIT_VALUE));
-	SetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, FindTemplateValue(paramTemplate, KEY_END_VALUE));
-	const CString strDriveName = FindTemplateValue(paramTemplate, KEY_DRIVE_NAME);
+	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
+	UpdateDriveNameFromTargetPath();
 
-	const CString strScheduleDays = FindTemplateValue(paramTemplate, KEY_SCHEDULE_DAYS);
+	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
 	CComboBox* pComboScheduleDays = (CComboBox*)GetDlgItem(IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS);
 	if (pComboScheduleDays != nullptr && pComboScheduleDays->GetSafeHwnd())
 	{
 		pComboScheduleDays->SelectString(-1, strScheduleDays);
 	}
-	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, FindTemplateValue(paramTemplate, KEY_SCHEDULE_TIME));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME));
 
 	UpdateLimitControls();
 	UpdateMoveControls();
+	UpdateDriveNameFromTargetPath();
 }
 
 void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
@@ -312,11 +278,11 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	GetDlgItemText(IDC_EDIT_SETUPITEM_NAME, strValue);
 	strValue.Trim();
 	paramTemplate.strName = strValue;
-	AddTemplateValue(paramTemplate, KEY_NAME, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::NAME, strValue);
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, strValue);
 	strValue.Trim();
-	AddTemplateValue(paramTemplate, KEY_ORIGIN_PATH, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH, strValue);
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_PATH_DEST, strValue);
 	strValue.Trim();
@@ -324,18 +290,18 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	AddTemplateValue(paramTemplate, KEY_DEST_PATH, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH, strValue);
 
 	const BOOL bEnableMove = IsDlgButtonChecked(IDC_CK_SETUPITEM_ENABLEMOVE) == BST_CHECKED;
 	strValue = bEnableMove ? _T("1") : _T("0");
-	AddTemplateValue(paramTemplate, KEY_ENABLE_MOVE, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE, strValue);
 
 	strValue = IsDlgButtonChecked(IDC_CK_SETUPITEM_BOOTSTART) == BST_CHECKED ? _T("1") : _T("0");
-	AddTemplateValue(paramTemplate, KEY_BOOT_START, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::BOOT_START, strValue);
 
 	const BOOL bScheduleMode = IsDlgButtonChecked(IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE) == BST_CHECKED;
-	strValue = bScheduleMode ? LIMIT_MODE_SCHEDULE : LIMIT_MODE_STORAGE;
-	AddTemplateValue(paramTemplate, KEY_LIMIT_MODE, strValue);
+	strValue = bScheduleMode ? CParameter::TemplateKey::LIMIT_MODE_SCHEDULE : CParameter::TemplateKey::LIMIT_MODE_STORAGE;
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE, strValue);
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, strValue);
 	strValue.Trim();
@@ -343,14 +309,14 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	AddTemplateValue(paramTemplate, KEY_LIMIT_VALUE, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE, strValue);
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, strValue);
 	strValue.Trim();
-	AddTemplateValue(paramTemplate, KEY_END_VALUE, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE, strValue);
 
-	strValue.Empty();
-	AddTemplateValue(paramTemplate, KEY_DRIVE_NAME, strValue);
+	UpdateDriveNameFromTargetPath();
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME, m_strDriveName);
 
 	strValue.Empty();
 	if (bScheduleMode)
@@ -370,7 +336,7 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	AddTemplateValue(paramTemplate, KEY_SCHEDULE_DAYS, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS, strValue);
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, strValue);
 	strValue.Trim();
@@ -378,7 +344,7 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	AddTemplateValue(paramTemplate, KEY_SCHEDULE_TIME, strValue);
+	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME, strValue);
 }
 
 void CSetupItem::OnBnClickedRadioLimitStorage()
@@ -434,6 +400,44 @@ void CSetupItem::UpdateLimitControls()
 	{
 		pEditScheduleTime->EnableWindow(bScheduleMode);
 	}
+}
+
+void CSetupItem::UpdateDriveNameFromTargetPath()
+{
+	CString strTargetPath;
+	GetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, strTargetPath);
+
+	m_strDriveName = ParseDriveNameFromPath(strTargetPath);
+
+	CString strDisplay;
+	if (!m_strDriveName.IsEmpty())
+	{
+		strDisplay.Format(_T("%s:"), static_cast<LPCTSTR>(m_strDriveName));
+	}
+	else
+	{
+		strDisplay = _T("-");
+	}
+
+	CWnd* pTextDriveName = GetDlgItem(IDC_STATIC_SETUPITEM_DRIVENAME);
+	if (pTextDriveName != nullptr && pTextDriveName->GetSafeHwnd())
+	{
+		pTextDriveName->SetWindowText(strDisplay);
+	}
+}
+
+CString CSetupItem::ParseDriveNameFromPath(const CString& strPath) const
+{
+	CString strDriveName;
+	CString strValue = strPath;
+	strValue.Trim();
+
+	if (strValue.GetLength() >= 2 && strValue[1] == _T(':') && _istalpha(strValue[0]))
+	{
+		strDriveName.Format(_T("%c"), static_cast<TCHAR>(_totupper(strValue[0])));
+	}
+
+	return strDriveName;
 }
 
 void CSetupItem::NormalizeNumericEdit(UINT nControlID, int nMaxLength)
@@ -520,4 +524,9 @@ void CSetupItem::OnBnClickedBtnSetupitemRemove()
 	}
 
 	pParent->PostMessage(WM_LISTSCROLL_REMOVE_ITEM, reinterpret_cast<WPARAM>(GetSafeHwnd()), 0);
+}
+
+void CSetupItem::OnEnChangeEditOriginPath()
+{
+	UpdateDriveNameFromTargetPath();
 }

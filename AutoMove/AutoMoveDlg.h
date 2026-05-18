@@ -5,8 +5,12 @@
 #include "CListScrollView.h"
 #include "CSetupDlg.h"
 #include "CParameter.h"
+#include "DriveInfo.h"
+#include "Dialog/CDriveUsageItem.h"
+#include <vector>
 
 #define WM_TRAY_ICON (WM_USER + 1)
+#define WM_DRIVE_USAGE_UPDATED (WM_USER + 2)
 
 // CAutoMoveDlg 대화 상자
 class CAutoMoveDlg : public CDialogEx
@@ -45,6 +49,8 @@ public:
 	std::vector<CString> m_vecAvailableDriveNames;
 	CWinThread* m_pDriveUsageThread;
 	HANDLE m_hDriveUsageStopEvent;
+	std::vector<DRIVE_INFO> m_vecDriveInfos;
+	std::vector<CDriveUsageItem*> m_vecDriveUsageItems;
 
 	void AlignControls();
 	void SetTrayIcon();
@@ -53,6 +59,12 @@ public:
 	void UpdatePathItemBlinkTimer();
 	BOOL HasBlinkingPathItem() const;
 	void LoadAvailableDriveNames();
+	void CreateDriveUsageControls();
+	void DestroyDriveUsageControls();
+	void UpdateDriveUsageControls(const std::vector<DRIVE_INFO>& vecDriveInfos);
+	int GetDriveUsageHeightDelta() const;
+	int GetFixedWindowHeight() const;
+	void UpdateFixedWindowSize();
 	void StartDriveUsageThread();
 	void StopDriveUsageThread();
 	static UINT DriveUsageThreadProc(LPVOID pParam);
@@ -61,10 +73,13 @@ public:
 	afx_msg void OnBnClickedBtSystemOpen();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg LRESULT OnPathItemStateChanged(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnDriveUsageUpdated(WPARAM wParam, LPARAM lParam);
 	
 	
 	// 트레이 아이콘 메시지 처리
 	afx_msg LRESULT OnTrayIcon(WPARAM wParam, LPARAM lParam); 
 	afx_msg void OnTrayOpen();
 	afx_msg void OnTrayExit();
+	afx_msg void OnBnClickedBtnMainAllStart();
+	afx_msg void OnBnClickedBtnMainAllStop();
 };
