@@ -7,7 +7,7 @@
 #include "AutoMoveDlg.h"
 #include "afxdialogex.h"
 #include "CPathItem.h"
-#include "CDriveManager.h"
+#include "Manager/CDriveManager.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -711,7 +711,30 @@ void CAutoMoveDlg::OnTrayExit()
 
 void CAutoMoveDlg::OnBnClickedBtnMainAllStart()
 {
-	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CDriveManager driveManager;
+	int nTemplateCount = 0;
+	int nResultCount = 0;
+
+	for (int i = 0; i < static_cast<int>(m_pParam.m_vecTemplate.size()); ++i)
+	{
+		const CParameter::PARAM_TEMPLATE& paramTemplate = m_pParam.m_vecTemplate[i];
+		CString strOriginPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH);
+		strOriginPath.Trim();
+		if (strOriginPath.IsEmpty())
+		{
+			continue;
+		}
+
+		const std::vector<CString> vecFiles = driveManager.FindFiles(strOriginPath);
+		++nTemplateCount;
+		nResultCount += static_cast<int>(vecFiles.size());
+	}
+
+	CString strMessage;
+	strMessage.Format(_T("FindFiles completed.\nTemplates: %d\nResults: %d"),
+		nTemplateCount,
+		nResultCount);
+	MessageBox(strMessage, _T("FindFiles"), MB_OK | MB_ICONINFORMATION);
 }
 
 void CAutoMoveDlg::OnBnClickedBtnMainAllStop()

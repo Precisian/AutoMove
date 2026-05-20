@@ -1,5 +1,5 @@
-#pragma once
-#include "DriveInfo.h"
+﻿#pragma once
+#include "../DriveInfo.h"
 #include <vector>
 
 class CDriveManager
@@ -12,6 +12,11 @@ public:
 	void CheckDriveUsage();
 	std::vector<CString> GetDriveNames() const;
 	const std::vector<DRIVE_INFO>& GetDriveInfos() const;
+
+	// Returns root files and folder work items. Folder items are ordered bottom-up.
+	std::vector<CString> FindFiles(CString strPath);
+	void RemoveFiles(const std::vector<CString>& vecFilePaths);
+	void MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath);
 
 private:
 	CString BuildDriveRootPath(const CString& strDriveName) const;
