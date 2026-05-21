@@ -4,12 +4,51 @@
 
 namespace
 {
-	struct FIND_ITEM
+	struct FILE_SYSTEM_ITEM
 	{
 		CString strPath;
-		FILETIME ftLastWriteTime = {};
+		FILETIME ftCreationTime = {};
 		int nDepth = 0;
 		BOOL bDirectory = FALSE;
+	};
+
+	class CFindHandle
+	{
+	public:
+		explicit CFindHandle(const CString& strSearchPath)
+			: m_hFind(FindFirstFile(strSearchPath, &m_findData))
+		{
+		}
+
+		CFindHandle(const CFindHandle&) = delete;
+		CFindHandle& operator=(const CFindHandle&) = delete;
+
+		~CFindHandle()
+		{
+			if (IsValid())
+			{
+				FindClose(m_hFind);
+			}
+		}
+
+		BOOL IsValid() const
+		{
+			return m_hFind != INVALID_HANDLE_VALUE;
+		}
+
+		const WIN32_FIND_DATA& GetData() const
+		{
+			return m_findData;
+		}
+
+		BOOL MoveNext()
+		{
+			return FindNextFile(m_hFind, &m_findData);
+		}
+
+	private:
+		HANDLE m_hFind;
+		WIN32_FIND_DATA m_findData = {};
 	};
 
 	CString NormalizeDirectoryPath(CString strPath)
@@ -54,12 +93,47 @@ namespace
 		return (findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 	}
 
-	void SortByOldestFirst(std::vector<FIND_ITEM>& vecItems)
+	BOOL IsDirectory(const DWORD dwAttributes)
+	{
+		return (dwAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+	}
+
+	BOOL IsReparsePoint(const DWORD dwAttributes)
+	{
+		return (dwAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+	}
+
+	BOOL IsValidCleanupRoot(const CString& strPath)
+	{
+		const DWORD dwAttributes = GetFileAttributes(strPath);
+		return dwAttributes != INVALID_FILE_ATTRIBUTES
+			&& IsDirectory(dwAttributes)
+			&& !IsReparsePoint(dwAttributes);
+	}
+
+	FILE_SYSTEM_ITEM MakeFileSystemItem(const CString& strParent,
+		const WIN32_FIND_DATA& findData, int nDepth)
+	{
+		FILE_SYSTEM_ITEM item;
+		item.strPath = CombinePath(strParent, findData.cFileName);
+		item.ftCreationTime = findData.ftCreationTime;
+		item.nDepth = nDepth;
+		item.bDirectory = IsDirectory(findData.dwFileAttributes);
+		return item;
+	}
+
+	BOOL ShouldSkipFindData(const WIN32_FIND_DATA& findData)
+	{
+		const CString strName(findData.cFileName);
+		return strName.IsEmpty() || IsDots(strName) || IsReparsePoint(findData);
+	}
+
+	void SortByOldestFirst(std::vector<FILE_SYSTEM_ITEM>& vecItems)
 	{
 		std::sort(vecItems.begin(), vecItems.end(),
-			[](const FIND_ITEM& lhs, const FIND_ITEM& rhs)
+			[](const FILE_SYSTEM_ITEM& lhs, const FILE_SYSTEM_ITEM& rhs)
 			{
-				const LONG nCompare = CompareFileTime(&lhs.ftLastWriteTime, &rhs.ftLastWriteTime);
+				const LONG nCompare = CompareFileTime(&lhs.ftCreationTime, &rhs.ftCreationTime);
 				if (nCompare != 0)
 				{
 					return nCompare < 0;
@@ -69,17 +143,17 @@ namespace
 			});
 	}
 
-	void SortFoldersForCleanup(std::vector<FIND_ITEM>& vecItems)
+	void SortFoldersForCleanup(std::vector<FILE_SYSTEM_ITEM>& vecItems)
 	{
 		std::sort(vecItems.begin(), vecItems.end(),
-			[](const FIND_ITEM& lhs, const FIND_ITEM& rhs)
+			[](const FILE_SYSTEM_ITEM& lhs, const FILE_SYSTEM_ITEM& rhs)
 			{
 				if (lhs.nDepth != rhs.nDepth)
 				{
 					return lhs.nDepth > rhs.nDepth;
 				}
 
-				const LONG nCompare = CompareFileTime(&lhs.ftLastWriteTime, &rhs.ftLastWriteTime);
+				const LONG nCompare = CompareFileTime(&lhs.ftCreationTime, &rhs.ftCreationTime);
 				if (nCompare != 0)
 				{
 					return nCompare < 0;
@@ -89,47 +163,60 @@ namespace
 			});
 	}
 
-	void ScanFolderWorkItemsBottomUp(const FIND_ITEM& rootItem, std::vector<CString>& vecResult)
+	std::vector<FILE_SYSTEM_ITEM> LoadTopLevelItems(const CString& strDirectory)
 	{
-		std::vector<FIND_ITEM> vecStack;
-		std::vector<FIND_ITEM> vecFolders;
+		std::vector<FILE_SYSTEM_ITEM> vecItems;
+
+		CFindHandle find(BuildSearchPath(strDirectory));
+		if (!find.IsValid())
+		{
+			return vecItems;
+		}
+
+		do
+		{
+			const WIN32_FIND_DATA& findData = find.GetData();
+			if (ShouldSkipFindData(findData))
+			{
+				continue;
+			}
+
+			vecItems.push_back(MakeFileSystemItem(strDirectory, findData, 0));
+		} while (find.MoveNext());
+
+		SortByOldestFirst(vecItems);
+		return vecItems;
+	}
+
+	void AppendFolderCleanupItemsBottomUp(const FILE_SYSTEM_ITEM& rootItem, std::vector<CString>& vecResult)
+	{
+		std::vector<FILE_SYSTEM_ITEM> vecStack;
+		std::vector<FILE_SYSTEM_ITEM> vecFolders;
 		vecStack.push_back(rootItem);
 
 		while (!vecStack.empty())
 		{
-			const FIND_ITEM currentItem = vecStack.back();
+			const FILE_SYSTEM_ITEM currentItem = vecStack.back();
 			vecStack.pop_back();
 			vecFolders.push_back(currentItem);
 
-			WIN32_FIND_DATA findData = {};
-			HANDLE hFind = FindFirstFile(BuildSearchPath(currentItem.strPath), &findData);
-			if (hFind == INVALID_HANDLE_VALUE)
+			CFindHandle find(BuildSearchPath(currentItem.strPath));
+			if (!find.IsValid())
 			{
 				continue;
 			}
 
 			do
 			{
-				const CString strName(findData.cFileName);
-				if (IsDots(strName) || IsReparsePoint(findData))
+				const WIN32_FIND_DATA& findData = find.GetData();
+				if (ShouldSkipFindData(findData) || !IsDirectory(findData.dwFileAttributes))
 				{
 					continue;
 				}
 
-				if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
-				{
-					continue;
-				}
-
-				FIND_ITEM childItem;
-				childItem.strPath = CombinePath(currentItem.strPath, strName);
-				childItem.ftLastWriteTime = findData.ftLastWriteTime;
-				childItem.nDepth = currentItem.nDepth + 1;
-				childItem.bDirectory = TRUE;
-				vecStack.push_back(childItem);
-			} while (FindNextFile(hFind, &findData));
-
-			FindClose(hFind);
+				vecStack.push_back(MakeFileSystemItem(currentItem.strPath,
+					findData, currentItem.nDepth + 1));
+			} while (find.MoveNext());
 		}
 
 		SortFoldersForCleanup(vecFolders);
@@ -139,6 +226,136 @@ namespace
 			vecResult.push_back(vecFolders[i].strPath);
 		}
 	}
+
+	class CScopedBackgroundThreadPriority
+	{
+	public:
+		CScopedBackgroundThreadPriority()
+			: m_hThread(GetCurrentThread())
+			, m_nOriginalPriority(GetThreadPriority(m_hThread))
+			, m_bBackgroundMode(FALSE)
+			, m_bPriorityChanged(FALSE)
+		{
+			m_bBackgroundMode = SetThreadPriority(m_hThread, THREAD_MODE_BACKGROUND_BEGIN);
+			if (!m_bBackgroundMode && m_nOriginalPriority != THREAD_PRIORITY_ERROR_RETURN)
+			{
+				m_bPriorityChanged = SetThreadPriority(m_hThread, THREAD_PRIORITY_BELOW_NORMAL);
+			}
+		}
+
+		~CScopedBackgroundThreadPriority()
+		{
+			if (m_bBackgroundMode)
+			{
+				SetThreadPriority(m_hThread, THREAD_MODE_BACKGROUND_END);
+			}
+			else if (m_bPriorityChanged && m_nOriginalPriority != THREAD_PRIORITY_ERROR_RETURN)
+			{
+				SetThreadPriority(m_hThread, m_nOriginalPriority);
+			}
+		}
+
+	private:
+		HANDLE m_hThread;
+		int m_nOriginalPriority;
+		BOOL m_bBackgroundMode;
+		BOOL m_bPriorityChanged;
+	};
+
+	class CLowImpactDeleteContext
+	{
+	public:
+		BOOL DeletePath(const CString& strPath)
+		{
+			const DWORD dwAttributes = GetFileAttributes(strPath);
+			if (dwAttributes == INVALID_FILE_ATTRIBUTES || IsReparsePoint(dwAttributes))
+			{
+				return FALSE;
+			}
+
+			if (IsDirectory(dwAttributes))
+			{
+				DeleteDirectChildFiles(strPath);
+				return RemoveDirectoryIfEmpty(strPath);
+			}
+
+			return DeleteFilePath(strPath);
+		}
+
+	private:
+		void PauseAfterWork()
+		{
+			++m_nWorkCount;
+			Sleep((m_nWorkCount % 8) == 0 ? 10 : 1);
+		}
+
+		BOOL ClearReadOnlyAttribute(const CString& strPath, DWORD dwAttributes)
+		{
+			if ((dwAttributes & FILE_ATTRIBUTE_READONLY) == 0)
+			{
+				return TRUE;
+			}
+
+			return SetFileAttributes(strPath, dwAttributes & ~FILE_ATTRIBUTE_READONLY);
+		}
+
+		BOOL DeleteFilePath(const CString& strPath)
+		{
+			const DWORD dwAttributes = GetFileAttributes(strPath);
+			if (dwAttributes == INVALID_FILE_ATTRIBUTES
+				|| IsDirectory(dwAttributes)
+				|| IsReparsePoint(dwAttributes))
+			{
+				return FALSE;
+			}
+
+			ClearReadOnlyAttribute(strPath, dwAttributes);
+
+			const BOOL bDeleted = DeleteFile(strPath);
+			PauseAfterWork();
+			return bDeleted;
+		}
+
+		void DeleteDirectChildFiles(const CString& strDirectory)
+		{
+			CFindHandle find(BuildSearchPath(strDirectory));
+			if (!find.IsValid())
+			{
+				return;
+			}
+
+			do
+			{
+				const WIN32_FIND_DATA& findData = find.GetData();
+				if (ShouldSkipFindData(findData) || IsDirectory(findData.dwFileAttributes))
+				{
+					continue;
+				}
+
+				DeleteFilePath(CombinePath(strDirectory, findData.cFileName));
+			} while (find.MoveNext());
+		}
+
+		BOOL RemoveDirectoryIfEmpty(const CString& strPath)
+		{
+			const DWORD dwAttributes = GetFileAttributes(strPath);
+			if (dwAttributes == INVALID_FILE_ATTRIBUTES
+				|| !IsDirectory(dwAttributes)
+				|| IsReparsePoint(dwAttributes))
+			{
+				return FALSE;
+			}
+
+			ClearReadOnlyAttribute(strPath, dwAttributes);
+
+			const BOOL bRemoved = RemoveDirectory(strPath);
+			PauseAfterWork();
+			return bRemoved;
+		}
+
+		CScopedBackgroundThreadPriority m_backgroundPriority;
+		int m_nWorkCount = 0;
+	};
 }
 
 CDriveManager::CDriveManager(const std::vector<CString>& vecDriveNames)
@@ -258,53 +475,18 @@ std::vector<CString> CDriveManager::FindFiles(CString strPath)
 	std::vector<CString> vecResult;
 	strPath = NormalizeDirectoryPath(strPath);
 
-	if (strPath.IsEmpty())
+	if (strPath.IsEmpty() || !IsValidCleanupRoot(strPath))
 	{
 		return vecResult;
 	}
 
-	const DWORD dwAttributes = GetFileAttributes(strPath);
-	if (dwAttributes == INVALID_FILE_ATTRIBUTES
-		|| (dwAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0
-		|| (dwAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
-	{
-		return vecResult;
-	}
-
-	std::vector<FIND_ITEM> vecTopItems;
-
-	WIN32_FIND_DATA findData = {};
-	HANDLE hFind = FindFirstFile(BuildSearchPath(strPath), &findData);
-	if (hFind == INVALID_HANDLE_VALUE)
-	{
-		return vecResult;
-	}
-
-	do
-	{
-		const CString strName(findData.cFileName);
-		if (IsDots(strName) || IsReparsePoint(findData))
-		{
-			continue;
-		}
-
-		FIND_ITEM item;
-		item.strPath = CombinePath(strPath, strName);
-		item.ftLastWriteTime = findData.ftLastWriteTime;
-		item.nDepth = 0;
-		item.bDirectory = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-		vecTopItems.push_back(item);
-	} while (FindNextFile(hFind, &findData));
-
-	FindClose(hFind);
-
-	SortByOldestFirst(vecTopItems);
+	const std::vector<FILE_SYSTEM_ITEM> vecTopItems = LoadTopLevelItems(strPath);
 
 	for (int i = 0; i < static_cast<int>(vecTopItems.size()); ++i)
 	{
 		if (vecTopItems[i].bDirectory)
 		{
-			ScanFolderWorkItemsBottomUp(vecTopItems[i], vecResult);
+			AppendFolderCleanupItemsBottomUp(vecTopItems[i], vecResult);
 		}
 		else
 		{
@@ -317,6 +499,19 @@ std::vector<CString> CDriveManager::FindFiles(CString strPath)
 
 void CDriveManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
 {
+	CLowImpactDeleteContext deleteContext;
+
+	for (int i = 0; i < static_cast<int>(vecFilePaths.size()); ++i)
+	{
+		CString strPath = vecFilePaths[i];
+		strPath.Trim();
+		if (strPath.IsEmpty())
+		{
+			continue;
+		}
+
+		deleteContext.DeletePath(strPath);
+	}
 }
 
 void CDriveManager::MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath)

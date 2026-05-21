@@ -13,7 +13,7 @@ public:
 	std::vector<CString> GetDriveNames() const;
 	const std::vector<DRIVE_INFO>& GetDriveInfos() const;
 
-	// Returns root files and folder work items. Folder items are ordered bottom-up.
+	// Returns cleanup work items ordered oldest-first. Folder items are bottom-up.
 	std::vector<CString> FindFiles(CString strPath);
 	void RemoveFiles(const std::vector<CString>& vecFilePaths);
 	void MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath);
