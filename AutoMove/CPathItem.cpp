@@ -51,6 +51,7 @@ CPathItem::CPathItem(CWnd* pParent, CString strPathName)
 	, m_bWaitingEvent(FALSE)
 	, m_bWorkingMoveCopy(FALSE)
 	, m_bBlinkOn(TRUE)
+	, m_bEventRunningText(FALSE)
 {
 	m_strPathName = strPathName;
 }
@@ -95,14 +96,8 @@ void CPathItem::SetPathName(LPCTSTR lpszPathName)
 
 void CPathItem::SetEventText(LPCTSTR lpszEventText)
 {
-	CString strEventText;
-	strEventText.Format(_T("이벤트: %s"), lpszEventText);
-
-	CWnd* pEvent = GetDlgItem(IDC_STATIC_PATHITEM_EVENT);
-	if (pEvent != nullptr && pEvent->GetSafeHwnd())
-	{
-		pEvent->SetWindowText(strEventText);
-	}
+	m_strEventText = lpszEventText;
+	RefreshEventText();
 }
 
 void CPathItem::SetWaitingEvent(BOOL bWaitingEvent)
@@ -126,6 +121,7 @@ void CPathItem::SetWorkingMoveCopy(BOOL bWorkingMoveCopy)
 	}
 
 	m_bWorkingMoveCopy = bWorkingMoveCopy;
+	SetEventRunningText(bWorkingMoveCopy);
 	RefreshActControl();
 	UpdateButtons();
 	NotifyStateChanged();
@@ -150,6 +146,17 @@ void CPathItem::SetBlinkOn(BOOL bBlinkOn)
 
 	m_bBlinkOn = bBlinkOn;
 	RefreshActControl();
+}
+
+void CPathItem::SetEventRunningText(BOOL bRunning)
+{
+	if (m_bEventRunningText == bRunning)
+	{
+		return;
+	}
+
+	m_bEventRunningText = bRunning;
+	RefreshEventText();
 }
 
 void CPathItem::DoDataExchange(CDataExchange* pDX)
@@ -305,6 +312,22 @@ void CPathItem::RefreshActControl()
 	{
 		pAct->Invalidate();
 		pAct->UpdateWindow();
+	}
+}
+
+void CPathItem::RefreshEventText()
+{
+	CString strEventText;
+	strEventText.Format(_T("이벤트: %s"), static_cast<LPCTSTR>(m_strEventText));
+	if (m_bEventRunningText)
+	{
+		strEventText += _T(" (실행중)");
+	}
+
+	CWnd* pEvent = GetDlgItem(IDC_STATIC_PATHITEM_EVENT);
+	if (pEvent != nullptr && pEvent->GetSafeHwnd())
+	{
+		pEvent->SetWindowText(strEventText);
 	}
 }
 

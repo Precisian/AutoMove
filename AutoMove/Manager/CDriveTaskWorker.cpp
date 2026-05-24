@@ -436,7 +436,9 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 		return DRIVE_TASK_RESULT::Completed;
 	}
 
-	const std::vector<CString> vecFiles = driveManager.FindFiles(strOriginPath);
+	const std::vector<CString> vecFiles = task.eType == DRIVE_TASK_TYPE::MoveFiles
+		? driveManager.FindMoveItems(strOriginPath)
+		: driveManager.FindFiles(strOriginPath);
 	for (int i = 0; i < static_cast<int>(vecFiles.size()); ++i)
 	{
 		if (IsStopRequested(m_hStopEvent) || ShouldCancelCurrent())

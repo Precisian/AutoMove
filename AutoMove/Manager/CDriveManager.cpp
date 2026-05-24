@@ -83,6 +83,20 @@ namespace
 		return CombinePath(strDirectory, _T("*"));
 	}
 
+	CString GetFileNameFromPath(CString strPath)
+	{
+		strPath = NormalizeDirectoryPath(strPath);
+		const int nBackslash = strPath.ReverseFind(_T('\\'));
+		const int nSlash = strPath.ReverseFind(_T('/'));
+		const int nSeparator = max(nBackslash, nSlash);
+		if (nSeparator < 0)
+		{
+			return strPath;
+		}
+
+		return strPath.Mid(nSeparator + 1);
+	}
+
 	BOOL IsDots(const CString& strName)
 	{
 		return strName == _T(".") || strName == _T("..");
@@ -109,6 +123,45 @@ namespace
 		return dwAttributes != INVALID_FILE_ATTRIBUTES
 			&& IsDirectory(dwAttributes)
 			&& !IsReparsePoint(dwAttributes);
+	}
+
+	BOOL IsValidDirectoryPath(const CString& strPath)
+	{
+		const DWORD dwAttributes = GetFileAttributes(strPath);
+		return dwAttributes != INVALID_FILE_ATTRIBUTES && IsDirectory(dwAttributes);
+	}
+
+	BOOL EnsureDirectoryExists(const CString& strDirectory)
+	{
+		CString strPath = NormalizeDirectoryPath(strDirectory);
+		if (strPath.IsEmpty())
+		{
+			return FALSE;
+		}
+
+		if (IsValidDirectoryPath(strPath))
+		{
+			return TRUE;
+		}
+
+		const int nBackslash = strPath.ReverseFind(_T('\\'));
+		const int nSlash = strPath.ReverseFind(_T('/'));
+		const int nSeparator = max(nBackslash, nSlash);
+		if (nSeparator > 2)
+		{
+			const CString strParent = strPath.Left(nSeparator);
+			if (!EnsureDirectoryExists(strParent))
+			{
+				return FALSE;
+			}
+		}
+
+		if (CreateDirectory(strPath, nullptr))
+		{
+			return TRUE;
+		}
+
+		return GetLastError() == ERROR_ALREADY_EXISTS && IsValidDirectoryPath(strPath);
 	}
 
 	FILE_SYSTEM_ITEM MakeFileSystemItem(const CString& strParent,
@@ -356,6 +409,51 @@ namespace
 		CScopedBackgroundThreadPriority m_backgroundPriority;
 		int m_nWorkCount = 0;
 	};
+
+	BOOL MovePathToDirectory(CString strPath, CString strDestPath)
+	{
+		strPath.Trim();
+		strDestPath = NormalizeDirectoryPath(strDestPath);
+		if (strPath.IsEmpty() || strDestPath.IsEmpty())
+		{
+			return FALSE;
+		}
+
+		const DWORD dwAttributes = GetFileAttributes(strPath);
+		if (dwAttributes == INVALID_FILE_ATTRIBUTES || IsReparsePoint(dwAttributes))
+		{
+			return FALSE;
+		}
+
+		if (!EnsureDirectoryExists(strDestPath))
+		{
+			return FALSE;
+		}
+
+		const CString strFileName = GetFileNameFromPath(strPath);
+		if (strFileName.IsEmpty())
+		{
+			return FALSE;
+		}
+
+		const CString strTargetPath = CombinePath(strDestPath, strFileName);
+		CString strFromList = strPath;
+		CString strToList = strTargetPath;
+		strFromList += _T('\0');
+		strToList += _T('\0');
+
+		SHFILEOPSTRUCT fileOp = {};
+		fileOp.wFunc = FO_MOVE;
+		fileOp.pFrom = strFromList;
+		fileOp.pTo = strToList;
+		fileOp.fFlags = FOF_NOCONFIRMATION
+			| FOF_NOCONFIRMMKDIR
+			| FOF_NOERRORUI
+			| FOF_RENAMEONCOLLISION
+			| FOF_SILENT;
+
+		return SHFileOperation(&fileOp) == 0 && !fileOp.fAnyOperationsAborted;
+	}
 }
 
 CDriveManager::CDriveManager(const std::vector<CString>& vecDriveNames)
@@ -497,6 +595,25 @@ std::vector<CString> CDriveManager::FindFiles(CString strPath)
 	return vecResult;
 }
 
+std::vector<CString> CDriveManager::FindMoveItems(CString strPath)
+{
+	std::vector<CString> vecResult;
+	strPath = NormalizeDirectoryPath(strPath);
+
+	if (strPath.IsEmpty() || !IsValidCleanupRoot(strPath))
+	{
+		return vecResult;
+	}
+
+	const std::vector<FILE_SYSTEM_ITEM> vecTopItems = LoadTopLevelItems(strPath);
+	for (int i = 0; i < static_cast<int>(vecTopItems.size()); ++i)
+	{
+		vecResult.push_back(vecTopItems[i].strPath);
+	}
+
+	return vecResult;
+}
+
 void CDriveManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
 {
 	CLowImpactDeleteContext deleteContext;
@@ -516,4 +633,8 @@ void CDriveManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
 
 void CDriveManager::MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath)
 {
+	for (int i = 0; i < static_cast<int>(vecFilePaths.size()); ++i)
+	{
+		MovePathToDirectory(vecFilePaths[i], strDestPath);
+	}
 }

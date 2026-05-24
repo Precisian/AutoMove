@@ -76,6 +76,7 @@ CAutoMoveDlg::CAutoMoveDlg(CWnd* pParent /*=nullptr*/)
 
 CAutoMoveDlg::~CAutoMoveDlg()
 {
+	m_driveTaskWorker.Stop();
 	StopDriveUsageThread();
 	DestroyDriveUsageControls();
 }
@@ -99,6 +100,8 @@ BEGIN_MESSAGE_MAP(CAutoMoveDlg, CDialogEx)
 	ON_COMMAND(ID_TRAY_EXIT, &CAutoMoveDlg::OnTrayExit)
 	ON_MESSAGE(WM_PATHITEM_STATE_CHANGED, &CAutoMoveDlg::OnPathItemStateChanged)
 	ON_MESSAGE(WM_DRIVE_USAGE_UPDATED, &CAutoMoveDlg::OnDriveUsageUpdated)
+	ON_MESSAGE(WM_DRIVE_TASK_STARTED, &CAutoMoveDlg::OnDriveTaskStarted)
+	ON_MESSAGE(WM_DRIVE_TASK_FINISHED, &CAutoMoveDlg::OnDriveTaskFinished)
 	ON_BN_CLICKED(IDC_BTN_MAIN_ALL_START, &CAutoMoveDlg::OnBnClickedBtnMainAllStart)
 	ON_BN_CLICKED(IDC_BTN_MAIN_ALL_STOP, &CAutoMoveDlg::OnBnClickedBtnMainAllStop)
 END_MESSAGE_MAP()
@@ -144,6 +147,7 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	UpdateFixedWindowSize();
 	AlignControls();
 	StartDriveUsageThread();
+	EnsureDriveTaskWorkerStarted();
 
 	// 1. Picture Control(IDC_STATIC_LIST_ITEM) 영역 좌표 가져오기
 	CRect rect;
@@ -228,6 +232,7 @@ void CAutoMoveDlg::OnBnClickedMainExit()
 	if (ret == IDYES)
 	{
 		KillTimer(TIMER_PATHITEM_BLINK);
+		m_driveTaskWorker.Stop();
 		StopDriveUsageThread();
 		EndDialog(IDOK);
 	}
@@ -378,8 +383,34 @@ void CAutoMoveDlg::OnTimer(UINT_PTR nIDEvent)
 
 LRESULT CAutoMoveDlg::OnPathItemStateChanged(WPARAM wParam, LPARAM lParam)
 {
-	UNREFERENCED_PARAMETER(wParam);
 	UNREFERENCED_PARAMETER(lParam);
+
+	CPathItem* pItem = FindPathItemByHwnd(reinterpret_cast<HWND>(wParam));
+	if (pItem != nullptr)
+	{
+		const CParameter::PARAM_TEMPLATE* pTemplate = FindTemplateByName(pItem->m_strPathName);
+		if (pTemplate != nullptr)
+		{
+			if (pItem->IsWaitingEvent() && !pItem->IsWorkingMoveCopy())
+			{
+				if (!ShouldTriggerDriveTask(*pTemplate, m_vecDriveInfos))
+				{
+					pItem->SetWaitingEvent(FALSE);
+				}
+				else if (!EnqueueDriveTask(*pTemplate, pItem)
+					&& !m_driveTaskWorker.IsQueued(pItem->GetSafeHwnd())
+					&& !m_driveTaskWorker.IsWorking(pItem->GetSafeHwnd()))
+				{
+					pItem->SetWaitingEvent(FALSE);
+				}
+			}
+			else if (!pItem->IsWaitingEvent() && !pItem->IsWorkingMoveCopy())
+			{
+				m_driveTaskWorker.Cancel(pItem->GetSafeHwnd());
+				m_driveTaskWorker.Cancel(pTemplate->strName);
+			}
+		}
+	}
 
 	UpdatePathItemBlinkTimer();
 	return 0;
@@ -591,6 +622,7 @@ LRESULT CAutoMoveDlg::OnDriveUsageUpdated(WPARAM wParam, LPARAM lParam)
 	if (pDriveInfos != nullptr)
 	{
 		UpdateDriveUsageControls(*pDriveInfos);
+		EnqueueTriggeredDriveTasks(*pDriveInfos);
 		delete pDriveInfos;
 	}
 
@@ -676,6 +708,348 @@ UINT CAutoMoveDlg::DriveUsageThreadProc(LPVOID pParam)
 	return 0;
 }
 
+BOOL CAutoMoveDlg::EnsureDriveTaskWorkerStarted()
+{
+	if (m_driveTaskWorker.IsRunning())
+	{
+		return TRUE;
+	}
+
+	return m_driveTaskWorker.Start(GetSafeHwnd());
+}
+
+CParameter::PARAM_TEMPLATE* CAutoMoveDlg::FindTemplateByName(LPCTSTR lpszTemplateName)
+{
+	if (lpszTemplateName == nullptr || *lpszTemplateName == _T('\0'))
+	{
+		return nullptr;
+	}
+
+	for (int i = 0; i < static_cast<int>(m_pParam.m_vecTemplate.size()); ++i)
+	{
+		if (m_pParam.m_vecTemplate[i].strName.CompareNoCase(lpszTemplateName) == 0)
+		{
+			return &m_pParam.m_vecTemplate[i];
+		}
+	}
+
+	return nullptr;
+}
+
+const CParameter::PARAM_TEMPLATE* CAutoMoveDlg::FindTemplateByName(LPCTSTR lpszTemplateName) const
+{
+	return const_cast<CAutoMoveDlg*>(this)->FindTemplateByName(lpszTemplateName);
+}
+
+CPathItem* CAutoMoveDlg::FindPathItemByHwnd(HWND hPathItemWnd) const
+{
+	if (m_pScrollView == nullptr || !m_pScrollView->GetSafeHwnd() || hPathItemWnd == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (int i = 0; i < m_pScrollView->GetItemCount(); ++i)
+	{
+		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
+		if (pItem != nullptr && pItem->GetSafeHwnd() == hPathItemWnd)
+		{
+			return pItem;
+		}
+	}
+
+	return nullptr;
+}
+
+CPathItem* CAutoMoveDlg::FindPathItemByTemplateName(LPCTSTR lpszTemplateName) const
+{
+	if (m_pScrollView == nullptr || !m_pScrollView->GetSafeHwnd()
+		|| lpszTemplateName == nullptr || *lpszTemplateName == _T('\0'))
+	{
+		return nullptr;
+	}
+
+	for (int i = 0; i < m_pScrollView->GetItemCount(); ++i)
+	{
+		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
+		if (pItem != nullptr && pItem->m_strPathName.CompareNoCase(lpszTemplateName) == 0)
+		{
+			return pItem;
+		}
+	}
+
+	return nullptr;
+}
+
+BOOL CAutoMoveDlg::EnqueueDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem)
+{
+	if (!EnsureDriveTaskWorkerStarted())
+	{
+		return FALSE;
+	}
+
+	const DRIVE_TASK task = BuildDriveTask(paramTemplate, pPathItem);
+	return m_driveTaskWorker.Enqueue(task);
+}
+
+BOOL CAutoMoveDlg::EnqueueDriveTask(CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem)
+{
+	if (!EnsureDriveTaskWorkerStarted())
+	{
+		return FALSE;
+	}
+
+	const DRIVE_TASK task = BuildDriveTask(paramTemplate, pPathItem);
+	if (!m_driveTaskWorker.Enqueue(task))
+	{
+		return FALSE;
+	}
+
+	if (CParameter::IsScheduleLimitMode(paramTemplate))
+	{
+		SYSTEMTIME now;
+		GetLocalTime(&now);
+		paramTemplate.strLastScheduleRunDate = GetScheduleRunDate(now);
+	}
+
+	return TRUE;
+}
+
+DRIVE_TASK CAutoMoveDlg::BuildDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem) const
+{
+	DRIVE_TASK task;
+	task.hPathItemWnd = pPathItem != nullptr ? pPathItem->GetSafeHwnd() : nullptr;
+	task.strTemplateName = paramTemplate.strName;
+	task.strOriginPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH);
+	task.strDestPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH);
+	task.strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
+	task.nEndUsagePercent = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
+	task.eType = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE) == _T("1")
+		? DRIVE_TASK_TYPE::MoveFiles
+		: DRIVE_TASK_TYPE::RemoveFiles;
+	return task;
+}
+
+void CAutoMoveDlg::ResetPathItemTaskState()
+{
+	if (m_pScrollView == nullptr || !m_pScrollView->GetSafeHwnd())
+	{
+		return;
+	}
+
+	for (int i = 0; i < m_pScrollView->GetItemCount(); ++i)
+	{
+		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
+		if (pItem != nullptr)
+		{
+			pItem->SetWorkingMoveCopy(FALSE);
+			pItem->SetWaitingEvent(FALSE);
+		}
+	}
+}
+
+int CAutoMoveDlg::EnqueueTriggeredDriveTasks(const std::vector<DRIVE_INFO>& vecDriveInfos)
+{
+	int nQueuedCount = 0;
+
+	for (int i = 0; i < static_cast<int>(m_pParam.m_vecTemplate.size()); ++i)
+	{
+		CParameter::PARAM_TEMPLATE& paramTemplate = m_pParam.m_vecTemplate[i];
+		if (!ShouldTriggerDriveTask(paramTemplate, vecDriveInfos))
+		{
+			continue;
+		}
+
+		CPathItem* pItem = FindPathItemByTemplateName(paramTemplate.strName);
+		if (EnqueueDriveTask(paramTemplate, pItem))
+		{
+			++nQueuedCount;
+			if (pItem != nullptr)
+			{
+				pItem->SetWaitingEvent(TRUE);
+			}
+		}
+	}
+
+	return nQueuedCount;
+}
+
+BOOL CAutoMoveDlg::ShouldTriggerDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const std::vector<DRIVE_INFO>& vecDriveInfos) const
+{
+	const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
+	if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)
+	{
+		SYSTEMTIME now;
+		GetLocalTime(&now);
+		return ShouldTriggerScheduleTask(paramTemplate, now);
+	}
+
+	const CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
+	const int nUsagePercent = FindDriveUsagePercent(vecDriveInfos, strDriveName);
+	if (nUsagePercent < 0)
+	{
+		return FALSE;
+	}
+
+	const int nLimitValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE));
+	const int nEndValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
+	return nLimitValue > 0
+		&& nEndValue > 0
+		&& nUsagePercent >= nLimitValue
+		&& nUsagePercent > nEndValue;
+}
+
+BOOL CAutoMoveDlg::ShouldTriggerScheduleTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const SYSTEMTIME& now) const
+{
+	const CString strToday = GetScheduleRunDate(now);
+	if (!paramTemplate.strLastScheduleRunDate.IsEmpty()
+		&& paramTemplate.strLastScheduleRunDate == strToday)
+	{
+		return FALSE;
+	}
+
+	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
+	if (!IsScheduleDayMatched(strScheduleDays, now.wDayOfWeek))
+	{
+		return FALSE;
+	}
+
+	const CString strScheduleTime = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME);
+	if (strScheduleTime.GetLength() != 4)
+	{
+		return FALSE;
+	}
+
+	const int nScheduleHour = _ttoi(strScheduleTime.Left(2));
+	const int nScheduleMinute = _ttoi(strScheduleTime.Mid(2, 2));
+	if (nScheduleHour < 0 || nScheduleHour > 23 || nScheduleMinute < 0 || nScheduleMinute > 59)
+	{
+		return FALSE;
+	}
+
+	const int nNowMinutes = static_cast<int>(now.wHour) * 60 + static_cast<int>(now.wMinute);
+	const int nScheduleMinutes = nScheduleHour * 60 + nScheduleMinute;
+	return nNowMinutes >= nScheduleMinutes;
+}
+
+BOOL CAutoMoveDlg::IsScheduleDayMatched(const CString& strScheduleDays, WORD wDayOfWeek) const
+{
+	CString strDays = strScheduleDays;
+	strDays.Trim();
+	if (strDays.IsEmpty())
+	{
+		return FALSE;
+	}
+
+	static constexpr LPCTSTR arrKoreanDays[] = {
+		_T("일"), _T("월"), _T("화"), _T("수"), _T("목"), _T("금"), _T("토")
+	};
+	static constexpr LPCTSTR arrEnglishDays[] = {
+		_T("Sun"), _T("Mon"), _T("Tue"), _T("Wed"), _T("Thu"), _T("Fri"), _T("Sat")
+	};
+
+	if (strDays.Find(_T("매일")) >= 0
+		|| strDays.CompareNoCase(_T("Daily")) == 0
+		|| strDays.CompareNoCase(_T("Everyday")) == 0
+		|| strDays.Find(_T("All")) >= 0)
+	{
+		return TRUE;
+	}
+
+	if (wDayOfWeek <= 6)
+	{
+		CString strNumber;
+		strNumber.Format(_T("%u"), wDayOfWeek);
+		return strDays.Find(arrKoreanDays[wDayOfWeek]) >= 0
+			|| strDays.Find(arrEnglishDays[wDayOfWeek]) >= 0
+			|| strDays.Find(strNumber) >= 0;
+	}
+
+	return FALSE;
+}
+
+CString CAutoMoveDlg::GetScheduleRunDate(const SYSTEMTIME& time) const
+{
+	CString strDate;
+	strDate.Format(_T("%04u%02u%02u"), time.wYear, time.wMonth, time.wDay);
+	return strDate;
+}
+
+int CAutoMoveDlg::FindDriveUsagePercent(const std::vector<DRIVE_INFO>& vecDriveInfos, LPCTSTR lpszDriveName) const
+{
+	CString strDriveName;
+	if (lpszDriveName != nullptr)
+	{
+		strDriveName = lpszDriveName;
+	}
+	strDriveName.Trim();
+	if (strDriveName.IsEmpty())
+	{
+		return -1;
+	}
+
+	for (int i = 0; i < static_cast<int>(vecDriveInfos.size()); ++i)
+	{
+		if (vecDriveInfos[i].strDriveName.CompareNoCase(strDriveName) == 0)
+		{
+			return vecDriveInfos[i].nUsagePercent;
+		}
+	}
+
+	return -1;
+}
+
+LRESULT CAutoMoveDlg::OnDriveTaskStarted(WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(wParam);
+
+	DRIVE_TASK_NOTIFY* pNotify = reinterpret_cast<DRIVE_TASK_NOTIFY*>(lParam);
+	if (pNotify != nullptr)
+	{
+		CPathItem* pItem = FindPathItemByHwnd(pNotify->hPathItemWnd);
+		if (pItem == nullptr)
+		{
+			pItem = FindPathItemByTemplateName(pNotify->strTemplateName);
+		}
+
+		if (pItem != nullptr)
+		{
+			pItem->SetWorkingMoveCopy(TRUE);
+			pItem->SetWaitingEvent(FALSE);
+		}
+
+		delete pNotify;
+	}
+
+	UpdatePathItemBlinkTimer();
+	return 0;
+}
+
+LRESULT CAutoMoveDlg::OnDriveTaskFinished(WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(wParam);
+
+	DRIVE_TASK_NOTIFY* pNotify = reinterpret_cast<DRIVE_TASK_NOTIFY*>(lParam);
+	if (pNotify != nullptr)
+	{
+		CPathItem* pItem = FindPathItemByHwnd(pNotify->hPathItemWnd);
+		if (pItem == nullptr)
+		{
+			pItem = FindPathItemByTemplateName(pNotify->strTemplateName);
+		}
+
+		if (pItem != nullptr)
+		{
+			pItem->SetWorkingMoveCopy(FALSE);
+			pItem->SetWaitingEvent(FALSE);
+		}
+
+		delete pNotify;
+	}
+
+	UpdatePathItemBlinkTimer();
+	return 0;
+}
+
 // 트레이 아이콘 메시지 처리
 LRESULT CAutoMoveDlg::OnTrayIcon(WPARAM wParam, LPARAM lParam) {
 	if (lParam == WM_RBUTTONUP) { 
@@ -711,33 +1085,23 @@ void CAutoMoveDlg::OnTrayExit()
 
 void CAutoMoveDlg::OnBnClickedBtnMainAllStart()
 {
-	CDriveManager driveManager;
-	int nTemplateCount = 0;
-	int nResultCount = 0;
-
-	for (int i = 0; i < static_cast<int>(m_pParam.m_vecTemplate.size()); ++i)
+	if (!EnsureDriveTaskWorkerStarted())
 	{
-		const CParameter::PARAM_TEMPLATE& paramTemplate = m_pParam.m_vecTemplate[i];
-		CString strOriginPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH);
-		strOriginPath.Trim();
-		if (strOriginPath.IsEmpty())
-		{
-			continue;
-		}
-
-		const std::vector<CString> vecFiles = driveManager.FindFiles(strOriginPath);
-		++nTemplateCount;
-		nResultCount += static_cast<int>(vecFiles.size());
+		MessageBox(_T("Drive task worker could not be started."),
+			_T("Task Worker"), MB_OK | MB_ICONERROR);
+		return;
 	}
 
+	const int nQueuedCount = EnqueueTriggeredDriveTasks(m_vecDriveInfos);
+
 	CString strMessage;
-	strMessage.Format(_T("FindFiles completed.\nTemplates: %d\nResults: %d"),
-		nTemplateCount,
-		nResultCount);
-	MessageBox(strMessage, _T("FindFiles"), MB_OK | MB_ICONINFORMATION);
+	strMessage.Format(_T("Queued triggered tasks: %d"), nQueuedCount);
+	MessageBox(strMessage, _T("Task Worker"), MB_OK | MB_ICONINFORMATION);
 }
 
 void CAutoMoveDlg::OnBnClickedBtnMainAllStop()
 {
-	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	m_driveTaskWorker.Stop();
+	ResetPathItemTaskState();
+	EnsureDriveTaskWorkerStarted();
 }

@@ -29,6 +29,7 @@ public:
 	CListScrollView* m_pScrollView;
 	afx_msg void OnBnClickedBtnSystemAdditem();
 	afx_msg void OnBnClickedCheckAutoStart();
+	afx_msg void OnBnClickedBtnSetupTestStart();
 
 private:
 	void LoadParameterToControls();
@@ -36,6 +37,10 @@ private:
 	void BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& paramTemplate, std::vector<CString>& vecErrors) const;
 	void AddTemplateItem(const CParameter::PARAM_TEMPLATE* pTemplate = nullptr);
 	void SetAllTemplateBootStart(BOOL bBootStart);
+	CString BuildSimulationReport(const std::vector<CParameter::PARAM_TEMPLATE>& vecTemplate) const;
+	int GetTemplateDriveUsagePercent(const CParameter::PARAM_TEMPLATE& paramTemplate) const;
+	BOOL IsSimulatedDriveCompleted(const std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const;
+	void MarkSimulatedDriveCompleted(std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const;
 
 	CParameter* m_pRuntimeParam;
 };

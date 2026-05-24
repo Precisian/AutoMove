@@ -22,6 +22,7 @@ public:
 	BOOL IsWaitingEvent() const;
 	BOOL IsWorkingMoveCopy() const;
 	void SetBlinkOn(BOOL bBlinkOn);
+	void SetEventRunningText(BOOL bRunning);
 	void RefreshActControl();
 
 // 대화 상자 데이터입니다.
@@ -45,10 +46,13 @@ public:
 
 private:
 	COLORREF GetActColor() const;
+	void RefreshEventText();
 	void UpdateButtons();
 	void NotifyStateChanged();
 
+	CString m_strEventText;
 	BOOL m_bWaitingEvent;
 	BOOL m_bWorkingMoveCopy;
 	BOOL m_bBlinkOn;
+	BOOL m_bEventRunningText;
 };

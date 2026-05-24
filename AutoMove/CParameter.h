@@ -5,7 +5,7 @@ class CParameter
 {
 public:
 	static constexpr LPCTSTR DEFAULT_INI_PATH = _T(".\\System.ini");
-	static constexpr LPCTSTR TEMPLATE_SECTION = _T("Templete");
+	static constexpr LPCTSTR TEMPLATE_SECTION = _T("Template");
 
 	struct TemplateKey
 	{
@@ -42,6 +42,7 @@ public:
 		CString strName;
 		std::vector<PARAM_TEMPLATE_VALUE> vecValue;
 		TEMPLATE_RUNTIME_STATE eRuntimeState = TEMPLATE_STATE_IDLE;
+		CString strLastScheduleRunDate;
 	};
 
 	CParameter();
@@ -71,12 +72,6 @@ public:
 
 
 private:
-	enum PARAM_MODE
-	{
-		PARAM_LOAD,
-		PARAM_SAVE
-	};
-
 	BOOL LoadTemplate();
 	BOOL SaveTemplate();
 	void LoadTemplateNames(std::vector<CString>& vecTemplateNames) const;
@@ -87,5 +82,4 @@ private:
 	BOOL WriteString(LPCTSTR lpszSection, LPCTSTR lpszKey, LPCTSTR lpszValue) const;
 
 	CString m_strIniPath;
-	PARAM_MODE m_eMode;
 };

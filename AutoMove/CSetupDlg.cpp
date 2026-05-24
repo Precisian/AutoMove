@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "CSetupDlg.h"
 #include "CSetupItem.h"
+#include "Manager/CDriveManager.h"
 
 namespace
 {
@@ -11,6 +12,7 @@ namespace
 	constexpr LPCTSTR ERROR_INVALID_LIMIT_VALUE = _T("'%s' 항목의 용량 값은 1~100 사이의 숫자여야 합니다.");
 	constexpr LPCTSTR ERROR_EMPTY_END_VALUE = _T("'%s' 항목의 종료 용량 값이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_END_VALUE = _T("'%s' 항목의 종료 용량 값은 1~100 사이의 숫자여야 합니다.");
+	constexpr LPCTSTR ERROR_END_VALUE_OVER_LIMIT_VALUE = _T("'%s' 항목의 종료 용량 값은 용량 값보다 클 수 없습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_SCHEDULE_DAY = _T("'%s' 항목의 스케줄 요일이 선택되지 않았습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_SCHEDULE_TIME = _T("'%s' 항목의 스케줄 시간이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_SCHEDULE_TIME = _T("'%s' 항목의 스케줄 시간은 0800 형식의 올바른 4자리 시간이어야 합니다.");
@@ -143,6 +145,7 @@ BEGIN_MESSAGE_MAP(CSetupDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_SYSTEM_EXIT, &CSetupDlg::OnBnClickedBtSystemExit)
 	ON_BN_CLICKED(IDC_BTN_SYSTEM_ADDITEM, &CSetupDlg::OnBnClickedBtnSystemAdditem)
 	ON_BN_CLICKED(IDC_CK_SETUP_AUTOSTART, &CSetupDlg::OnBnClickedCheckAutoStart)
+	ON_BN_CLICKED(IDC_BTN_SETUP_TESTSTART, &CSetupDlg::OnBnClickedBtnSetupTestStart)
 END_MESSAGE_MAP()
 
 void CSetupDlg::OnBnClickedBtSystemSave()
@@ -150,7 +153,7 @@ void CSetupDlg::OnBnClickedBtSystemSave()
 	CString strErrorMessage;
 	if (!SaveControlsToParameter(strErrorMessage))
 	{
-		MessageBox(strErrorMessage, _T("Save Failed"), MB_OK | MB_ICONWARNING);
+		MessageBox(strErrorMessage, _T("저장 실패"), MB_OK | MB_ICONWARNING);
 		return;
 	}
 
@@ -165,7 +168,7 @@ void CSetupDlg::OnBnClickedBtSystemSave()
 		return;
 	}
 
-	MessageBox(_T("Failed to save settings."), _T("Save Failed"), MB_OK | MB_ICONERROR);
+	MessageBox(_T("설정 저장을 할 수 없습니다!"), _T("저장 실패"), MB_OK | MB_ICONERROR);
 }
 
 void CSetupDlg::OnBnClickedBtSystemExit()
@@ -185,6 +188,18 @@ void CSetupDlg::OnBnClickedCheckAutoStart()
 	SetAllTemplateBootStart(IsDlgButtonChecked(IDC_CK_SETUP_AUTOSTART) == BST_CHECKED);
 }
 
+void CSetupDlg::OnBnClickedBtnSetupTestStart()
+{
+	CString strErrorMessage;
+	if (!SaveControlsToParameter(strErrorMessage))
+	{
+		MessageBox(strErrorMessage, _T("Test Failed"), MB_OK | MB_ICONWARNING);
+		return;
+	}
+
+	MessageBox(BuildSimulationReport(m_param.m_vecTemplate), _T("Simulation Test"), MB_OK | MB_ICONINFORMATION);
+}
+
 void CSetupDlg::LoadParameterToControls()
 {
 
@@ -201,6 +216,7 @@ void CSetupDlg::LoadParameterToControls()
 	}
 }
 
+// 저장 버튼 클릭 시, 유효한지 확인
 BOOL CSetupDlg::SaveControlsToParameter(CString& strErrorMessage)
 {
 	std::vector<CString> vecErrors;
@@ -262,6 +278,9 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	const CString strEndValue = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE);
 	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
 	const CString strScheduleTime = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME);
+	const BOOL bStorageMode = strLimitMode != CParameter::TemplateKey::LIMIT_MODE_SCHEDULE;
+	const bool bValidLimitValue = IsAllDigits(strLimitValue) && _ttoi(strLimitValue) >= 1 && _ttoi(strLimitValue) <= 100;
+	const bool bValidEndValue = IsAllDigits(strEndValue) && _ttoi(strEndValue) >= 1 && _ttoi(strEndValue) <= 100;
 
 	if (strOriginPath.IsEmpty())
 	{
@@ -295,7 +314,7 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 		{
 			AddError(vecErrors, ERROR_EMPTY_LIMIT_VALUE, strName);
 		}
-		else if (!IsAllDigits(strLimitValue) || _ttoi(strLimitValue) < 1 || _ttoi(strLimitValue) > 100)
+		else if (!bValidLimitValue)
 		{
 			AddError(vecErrors, ERROR_INVALID_LIMIT_VALUE, strName);
 		}
@@ -305,9 +324,13 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	{
 		AddError(vecErrors, ERROR_EMPTY_END_VALUE, strName);
 	}
-	else if (!IsAllDigits(strEndValue) || _ttoi(strEndValue) < 1 || _ttoi(strEndValue) > 100)
+	else if (!bValidEndValue)
 	{
 		AddError(vecErrors, ERROR_INVALID_END_VALUE, strName);
+	}
+	else if (bStorageMode && bValidLimitValue && _ttoi(strEndValue) > _ttoi(strLimitValue))
+	{
+		AddError(vecErrors, ERROR_END_VALUE_OVER_LIMIT_VALUE, strName);
 	}
 }
 
@@ -349,4 +372,145 @@ void CSetupDlg::SetAllTemplateBootStart(BOOL bBootStart)
 			pItem->SetBootStart(bBootStart);
 		}
 	}
+}
+CString CSetupDlg::BuildSimulationReport(const std::vector<CParameter::PARAM_TEMPLATE>& vecTemplate) const
+{
+	CString strReport;
+	strReport.Format(_T("Simulation Test\r\nTemplates: %d\r\n\r\n"), static_cast<int>(vecTemplate.size()));
+
+	std::vector<CString> vecCompletedDriveNames;
+	int nRunCount = 0;
+	int nSkipCount = 0;
+
+	for (int i = 0; i < static_cast<int>(vecTemplate.size()); ++i)
+	{
+		const CParameter::PARAM_TEMPLATE& paramTemplate = vecTemplate[i];
+		const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
+		const CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
+		const int nLimitValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE));
+		const int nEndValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
+		const int nUsagePercent = GetTemplateDriveUsagePercent(paramTemplate);
+
+		CString strLine;
+		if (IsSimulatedDriveCompleted(vecCompletedDriveNames, strDriveName))
+		{
+			strLine.Format(_T("%d. [%s] SKIP - %s drive already reached end condition.\r\n"),
+				i + 1,
+				static_cast<LPCTSTR>(paramTemplate.strName),
+				static_cast<LPCTSTR>(strDriveName));
+			++nSkipCount;
+		}
+		else if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)
+		{
+			strLine.Format(_T("%d. [%s] CHECK - schedule condition cannot be proven in this storage test.\r\n"),
+				i + 1,
+				static_cast<LPCTSTR>(paramTemplate.strName));
+			++nSkipCount;
+		}
+		else if (nUsagePercent < 0)
+		{
+			strLine.Format(_T("%d. [%s] SKIP - %s drive usage could not be checked.\r\n"),
+				i + 1,
+				static_cast<LPCTSTR>(paramTemplate.strName),
+				static_cast<LPCTSTR>(strDriveName));
+			++nSkipCount;
+		}
+		else if (nUsagePercent < nLimitValue)
+		{
+			strLine.Format(_T("%d. [%s] SKIP - %s drive usage %d%% is below trigger %d%%.\r\n"),
+				i + 1,
+				static_cast<LPCTSTR>(paramTemplate.strName),
+				static_cast<LPCTSTR>(strDriveName),
+				nUsagePercent,
+				nLimitValue);
+			++nSkipCount;
+		}
+		else if (nUsagePercent <= nEndValue)
+		{
+			strLine.Format(_T("%d. [%s] COMPLETE - %s drive usage %d%% is already at/below end %d%%.\r\n"),
+				i + 1,
+				static_cast<LPCTSTR>(paramTemplate.strName),
+				static_cast<LPCTSTR>(strDriveName),
+				nUsagePercent,
+				nEndValue);
+			MarkSimulatedDriveCompleted(vecCompletedDriveNames, strDriveName);
+			++nSkipCount;
+		}
+		else
+		{
+			strLine.Format(_T("%d. [%s] RUN - %s drive usage %d%% triggered at %d%%. Simulated completion marks this drive done.\r\n"),
+				i + 1,
+				static_cast<LPCTSTR>(paramTemplate.strName),
+				static_cast<LPCTSTR>(strDriveName),
+				nUsagePercent,
+				nLimitValue);
+			MarkSimulatedDriveCompleted(vecCompletedDriveNames, strDriveName);
+			++nRunCount;
+		}
+
+		strReport += strLine;
+	}
+
+	CString strSummary;
+	strSummary.Format(_T("\r\nSummary: RUN %d, SKIP/CHECK %d\r\nNo files were moved or deleted."),
+		nRunCount,
+		nSkipCount);
+	strReport += strSummary;
+	return strReport;
+}
+
+int CSetupDlg::GetTemplateDriveUsagePercent(const CParameter::PARAM_TEMPLATE& paramTemplate) const
+{
+	CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
+	strDriveName.Trim();
+	if (strDriveName.IsEmpty())
+	{
+		return -1;
+	}
+
+	std::vector<CString> vecDriveNames;
+	vecDriveNames.push_back(strDriveName);
+
+	CDriveManager driveManager(vecDriveNames);
+	driveManager.CheckDriveUsage();
+
+	const std::vector<DRIVE_INFO>& vecDriveInfos = driveManager.GetDriveInfos();
+	if (vecDriveInfos.empty())
+	{
+		return -1;
+	}
+
+	return vecDriveInfos[0].nUsagePercent;
+}
+
+BOOL CSetupDlg::IsSimulatedDriveCompleted(const std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const
+{
+	CString strDriveNameValue = strDriveName;
+	strDriveNameValue.Trim();
+	if (strDriveNameValue.IsEmpty())
+	{
+		return FALSE;
+	}
+
+	for (int i = 0; i < static_cast<int>(vecCompletedDriveNames.size()); ++i)
+	{
+		if (vecCompletedDriveNames[i].CompareNoCase(strDriveNameValue) == 0)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+void CSetupDlg::MarkSimulatedDriveCompleted(std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const
+{
+	CString strDriveNameValue = strDriveName;
+	strDriveNameValue.Trim();
+	if (strDriveNameValue.IsEmpty() || IsSimulatedDriveCompleted(vecCompletedDriveNames, strDriveNameValue))
+	{
+		return;
+	}
+
+	vecCompletedDriveNames.push_back(strDriveNameValue);
 }
