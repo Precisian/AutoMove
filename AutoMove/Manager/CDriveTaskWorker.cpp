@@ -236,48 +236,10 @@ BOOL CDriveTaskWorker::IsQueued(HWND hPathItemWnd) const
 	return FALSE;
 }
 
-BOOL CDriveTaskWorker::IsQueued(LPCTSTR lpszTemplateName) const
-{
-	CSingleLock queueLock(&m_csQueue, TRUE);
-	for (const DRIVE_TASK& task : m_queue)
-	{
-		if (IsSameTemplate(task, lpszTemplateName))
-		{
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
 BOOL CDriveTaskWorker::IsWorking(HWND hPathItemWnd) const
 {
 	CSingleLock stateLock(&m_csState, TRUE);
 	return m_hWorkingPathItemWnd == hPathItemWnd;
-}
-
-BOOL CDriveTaskWorker::IsWorking(LPCTSTR lpszTemplateName) const
-{
-	CString strTemplateName;
-	if (lpszTemplateName != nullptr)
-	{
-		strTemplateName = lpszTemplateName;
-	}
-	strTemplateName.Trim();
-	if (strTemplateName.IsEmpty())
-	{
-		return FALSE;
-	}
-
-	CSingleLock stateLock(&m_csState, TRUE);
-	return !m_strWorkingTemplateName.IsEmpty()
-		&& m_strWorkingTemplateName.CompareNoCase(strTemplateName) == 0;
-}
-
-int CDriveTaskWorker::GetQueueCount() const
-{
-	CSingleLock queueLock(&m_csQueue, TRUE);
-	return static_cast<int>(m_queue.size());
 }
 
 UINT CDriveTaskWorker::ThreadProc(LPVOID pParam)
@@ -429,7 +391,7 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 		return DRIVE_TASK_RESULT::Failed;
 	}
 
-	CDriveManager driveManager;
+	CDriveFileManager driveFileManager;
 	if (HasReachedEndUsage(task))
 	{
 		strMessage = _T("End usage condition already reached.");
@@ -437,8 +399,8 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 	}
 
 	const std::vector<CString> vecFiles = task.eType == DRIVE_TASK_TYPE::MoveFiles
-		? driveManager.FindMoveItems(strOriginPath)
-		: driveManager.FindFiles(strOriginPath);
+		? driveFileManager.FindMoveItems(strOriginPath)
+		: driveFileManager.FindFiles(strOriginPath);
 	for (int i = 0; i < static_cast<int>(vecFiles.size()); ++i)
 	{
 		if (IsStopRequested(m_hStopEvent) || ShouldCancelCurrent())
@@ -466,11 +428,11 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 				return DRIVE_TASK_RESULT::Failed;
 			}
 
-			driveManager.MoveFiles(vecSingleFile, strDestPath);
+			driveFileManager.MoveFiles(vecSingleFile, strDestPath);
 		}
 		else
 		{
-			driveManager.RemoveFiles(vecSingleFile);
+			driveFileManager.RemoveFiles(vecSingleFile);
 		}
 
 		if ((i % 8) == 0)
@@ -500,32 +462,8 @@ BOOL CDriveTaskWorker::HasReachedEndUsage(const DRIVE_TASK& task) const
 		return FALSE;
 	}
 
-	const int nUsagePercent = GetDriveUsagePercent(task.strDriveName);
+	const int nUsagePercent = CDriveManager::GetDriveUsagePercent(task.strDriveName);
 	return nUsagePercent >= 0 && nUsagePercent <= task.nEndUsagePercent;
-}
-
-int CDriveTaskWorker::GetDriveUsagePercent(const CString& strDriveName) const
-{
-	CString strDriveNameValue = strDriveName;
-	strDriveNameValue.Trim();
-	if (strDriveNameValue.IsEmpty())
-	{
-		return -1;
-	}
-
-	std::vector<CString> vecDriveNames;
-	vecDriveNames.push_back(strDriveNameValue);
-
-	CDriveManager driveManager(vecDriveNames);
-	driveManager.CheckDriveUsage();
-
-	const std::vector<DRIVE_INFO>& vecDriveInfos = driveManager.GetDriveInfos();
-	if (vecDriveInfos.empty())
-	{
-		return -1;
-	}
-
-	return vecDriveInfos[0].nUsagePercent;
 }
 
 BOOL CDriveTaskWorker::IsSamePathItem(const DRIVE_TASK& task, HWND hPathItemWnd) const

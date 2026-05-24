@@ -75,13 +75,12 @@ public:
 	const CParameter::PARAM_TEMPLATE* FindTemplateByName(LPCTSTR lpszTemplateName) const;
 	CPathItem* FindPathItemByHwnd(HWND hPathItemWnd) const;
 	CPathItem* FindPathItemByTemplateName(LPCTSTR lpszTemplateName) const;
-	BOOL EnqueueDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem);
 	BOOL EnqueueDriveTask(CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem);
+	void MarkScheduleTaskRunDate(CParameter::PARAM_TEMPLATE& paramTemplate);
 	DRIVE_TASK BuildDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem) const;
 	void ResetPathItemTaskState();
 	int EnqueueTriggeredDriveTasks(const std::vector<DRIVE_INFO>& vecDriveInfos);
 	BOOL ShouldTriggerDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const std::vector<DRIVE_INFO>& vecDriveInfos) const;
-	int FindDriveUsagePercent(const std::vector<DRIVE_INFO>& vecDriveInfos, LPCTSTR lpszDriveName) const;
 	BOOL ShouldTriggerScheduleTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const SYSTEMTIME& now) const;
 	BOOL IsScheduleDayMatched(const CString& strScheduleDays, WORD wDayOfWeek) const;
 	CString GetScheduleRunDate(const SYSTEMTIME& time) const;

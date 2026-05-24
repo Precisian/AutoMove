@@ -55,10 +55,7 @@ public:
 	BOOL Cancel(HWND hPathItemWnd);
 	BOOL Cancel(LPCTSTR lpszTemplateName);
 	BOOL IsQueued(HWND hPathItemWnd) const;
-	BOOL IsQueued(LPCTSTR lpszTemplateName) const;
 	BOOL IsWorking(HWND hPathItemWnd) const;
-	BOOL IsWorking(LPCTSTR lpszTemplateName) const;
-	int GetQueueCount() const;
 
 private:
 	static UINT ThreadProc(LPVOID pParam);
@@ -72,7 +69,6 @@ private:
 	DRIVE_TASK_RESULT ExecuteTask(const DRIVE_TASK& task, CString& strMessage);
 	BOOL ShouldCancelCurrent() const;
 	BOOL HasReachedEndUsage(const DRIVE_TASK& task) const;
-	int GetDriveUsagePercent(const CString& strDriveName) const;
 	BOOL IsSamePathItem(const DRIVE_TASK& task, HWND hPathItemWnd) const;
 	BOOL IsSameTemplate(const DRIVE_TASK& task, LPCTSTR lpszTemplateName) const;
 

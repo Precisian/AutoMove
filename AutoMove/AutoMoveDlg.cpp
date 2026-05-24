@@ -388,7 +388,7 @@ LRESULT CAutoMoveDlg::OnPathItemStateChanged(WPARAM wParam, LPARAM lParam)
 	CPathItem* pItem = FindPathItemByHwnd(reinterpret_cast<HWND>(wParam));
 	if (pItem != nullptr)
 	{
-		const CParameter::PARAM_TEMPLATE* pTemplate = FindTemplateByName(pItem->m_strPathName);
+		CParameter::PARAM_TEMPLATE* pTemplate = FindTemplateByName(pItem->m_strPathName);
 		if (pTemplate != nullptr)
 		{
 			if (pItem->IsWaitingEvent() && !pItem->IsWorkingMoveCopy())
@@ -780,17 +780,6 @@ CPathItem* CAutoMoveDlg::FindPathItemByTemplateName(LPCTSTR lpszTemplateName) co
 	return nullptr;
 }
 
-BOOL CAutoMoveDlg::EnqueueDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem)
-{
-	if (!EnsureDriveTaskWorkerStarted())
-	{
-		return FALSE;
-	}
-
-	const DRIVE_TASK task = BuildDriveTask(paramTemplate, pPathItem);
-	return m_driveTaskWorker.Enqueue(task);
-}
-
 BOOL CAutoMoveDlg::EnqueueDriveTask(CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem)
 {
 	if (!EnsureDriveTaskWorkerStarted())
@@ -806,12 +795,17 @@ BOOL CAutoMoveDlg::EnqueueDriveTask(CParameter::PARAM_TEMPLATE& paramTemplate, C
 
 	if (CParameter::IsScheduleLimitMode(paramTemplate))
 	{
-		SYSTEMTIME now;
-		GetLocalTime(&now);
-		paramTemplate.strLastScheduleRunDate = GetScheduleRunDate(now);
+		MarkScheduleTaskRunDate(paramTemplate);
 	}
 
 	return TRUE;
+}
+
+void CAutoMoveDlg::MarkScheduleTaskRunDate(CParameter::PARAM_TEMPLATE& paramTemplate)
+{
+	SYSTEMTIME now;
+	GetLocalTime(&now);
+	paramTemplate.strLastScheduleRunDate = GetScheduleRunDate(now);
 }
 
 DRIVE_TASK CAutoMoveDlg::BuildDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem) const
@@ -884,7 +878,7 @@ BOOL CAutoMoveDlg::ShouldTriggerDriveTask(const CParameter::PARAM_TEMPLATE& para
 	}
 
 	const CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
-	const int nUsagePercent = FindDriveUsagePercent(vecDriveInfos, strDriveName);
+	const int nUsagePercent = CDriveManager::FindDriveUsagePercent(vecDriveInfos, strDriveName);
 	if (nUsagePercent < 0)
 	{
 		return FALSE;
@@ -972,30 +966,6 @@ CString CAutoMoveDlg::GetScheduleRunDate(const SYSTEMTIME& time) const
 	CString strDate;
 	strDate.Format(_T("%04u%02u%02u"), time.wYear, time.wMonth, time.wDay);
 	return strDate;
-}
-
-int CAutoMoveDlg::FindDriveUsagePercent(const std::vector<DRIVE_INFO>& vecDriveInfos, LPCTSTR lpszDriveName) const
-{
-	CString strDriveName;
-	if (lpszDriveName != nullptr)
-	{
-		strDriveName = lpszDriveName;
-	}
-	strDriveName.Trim();
-	if (strDriveName.IsEmpty())
-	{
-		return -1;
-	}
-
-	for (int i = 0; i < static_cast<int>(vecDriveInfos.size()); ++i)
-	{
-		if (vecDriveInfos[i].strDriveName.CompareNoCase(strDriveName) == 0)
-		{
-			return vecDriveInfos[i].nUsagePercent;
-		}
-	}
-
-	return -1;
 }
 
 LRESULT CAutoMoveDlg::OnDriveTaskStarted(WPARAM wParam, LPARAM lParam)

@@ -527,6 +527,52 @@ const std::vector<DRIVE_INFO>& CDriveManager::GetDriveInfos() const
 	return m_vecDriveInfos;
 }
 
+int CDriveManager::FindDriveUsagePercent(const std::vector<DRIVE_INFO>& vecDriveInfos, LPCTSTR lpszDriveName)
+{
+	CString strDriveName;
+	if (lpszDriveName != nullptr)
+	{
+		strDriveName = lpszDriveName;
+	}
+	strDriveName.Trim();
+	if (strDriveName.IsEmpty())
+	{
+		return -1;
+	}
+
+	for (int i = 0; i < static_cast<int>(vecDriveInfos.size()); ++i)
+	{
+		if (vecDriveInfos[i].strDriveName.CompareNoCase(strDriveName) == 0)
+		{
+			return vecDriveInfos[i].nUsagePercent;
+		}
+	}
+
+	return -1;
+}
+
+int CDriveManager::GetDriveUsagePercent(LPCTSTR lpszDriveName)
+{
+	CString strDriveName;
+	if (lpszDriveName != nullptr)
+	{
+		strDriveName = lpszDriveName;
+	}
+	strDriveName.Trim();
+	if (strDriveName.IsEmpty())
+	{
+		return -1;
+	}
+
+	std::vector<CString> vecDriveNames;
+	vecDriveNames.push_back(strDriveName);
+
+	CDriveManager driveManager(vecDriveNames);
+	driveManager.CheckDriveUsage();
+
+	return FindDriveUsagePercent(driveManager.GetDriveInfos(), strDriveName);
+}
+
 CString CDriveManager::BuildDriveRootPath(const CString& strDriveName) const
 {
 	CString strRoot = strDriveName;
@@ -568,7 +614,7 @@ int CDriveManager::CalculateUsagePercent(const ULARGE_INTEGER& totalBytes, const
 
 // Build cleanup work items without keeping every child file path in memory.
 // Folder consumers should process direct child files only, then delete the folder if it is empty.
-std::vector<CString> CDriveManager::FindFiles(CString strPath)
+std::vector<CString> CDriveFileManager::FindFiles(CString strPath)
 {
 	std::vector<CString> vecResult;
 	strPath = NormalizeDirectoryPath(strPath);
@@ -595,7 +641,7 @@ std::vector<CString> CDriveManager::FindFiles(CString strPath)
 	return vecResult;
 }
 
-std::vector<CString> CDriveManager::FindMoveItems(CString strPath)
+std::vector<CString> CDriveFileManager::FindMoveItems(CString strPath)
 {
 	std::vector<CString> vecResult;
 	strPath = NormalizeDirectoryPath(strPath);
@@ -614,7 +660,7 @@ std::vector<CString> CDriveManager::FindMoveItems(CString strPath)
 	return vecResult;
 }
 
-void CDriveManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
+void CDriveFileManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
 {
 	CLowImpactDeleteContext deleteContext;
 
@@ -631,7 +677,7 @@ void CDriveManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
 	}
 }
 
-void CDriveManager::MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath)
+void CDriveFileManager::MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath)
 {
 	for (int i = 0; i < static_cast<int>(vecFilePaths.size()); ++i)
 	{

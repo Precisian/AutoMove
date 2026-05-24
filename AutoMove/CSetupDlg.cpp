@@ -468,19 +468,8 @@ int CSetupDlg::GetTemplateDriveUsagePercent(const CParameter::PARAM_TEMPLATE& pa
 		return -1;
 	}
 
-	std::vector<CString> vecDriveNames;
-	vecDriveNames.push_back(strDriveName);
+	return CDriveManager::GetDriveUsagePercent(strDriveName);
 
-	CDriveManager driveManager(vecDriveNames);
-	driveManager.CheckDriveUsage();
-
-	const std::vector<DRIVE_INFO>& vecDriveInfos = driveManager.GetDriveInfos();
-	if (vecDriveInfos.empty())
-	{
-		return -1;
-	}
-
-	return vecDriveInfos[0].nUsagePercent;
 }
 
 BOOL CSetupDlg::IsSimulatedDriveCompleted(const std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const
