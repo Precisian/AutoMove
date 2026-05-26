@@ -48,30 +48,15 @@ namespace
 		return vecEntry;
 	}
 
-	CParameter::PARAM_TEMPLATE_VALUE* FindTemplateValue(CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey)
+	CString Trimmed(CString strValue)
 	{
-		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
-		{
-			if (paramTemplate.vecValue[i].strKey == lpszKey)
-			{
-				return &paramTemplate.vecValue[i];
-			}
-		}
-
-		return nullptr;
+		strValue.Trim();
+		return strValue;
 	}
 
-	const CParameter::PARAM_TEMPLATE_VALUE* FindTemplateValue(const CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey)
+	BOOL IsTrueValue(const CString& strValue)
 	{
-		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
-		{
-			if (paramTemplate.vecValue[i].strKey == lpszKey)
-			{
-				return &paramTemplate.vecValue[i];
-			}
-		}
-
-		return nullptr;
+		return Trimmed(strValue) == _T("1");
 	}
 }
 
@@ -162,37 +147,124 @@ CString CParameter::GetIniPath() const
 CString CParameter::GetTemplateValue(const PARAM_TEMPLATE& paramTemplate,
 	LPCTSTR lpszKey, LPCTSTR lpszDefault)
 {
-	const PARAM_TEMPLATE_VALUE* pValue = FindTemplateValue(paramTemplate, lpszKey);
-	if (pValue == nullptr)
+	if (lpszKey == nullptr)
 	{
 		return lpszDefault;
 	}
 
-	CString strValue = pValue->strValue;
-	strValue.Trim();
-	return strValue;
+	if (_tcscmp(lpszKey, TemplateKey::NAME) == 0)
+	{
+		return Trimmed(paramTemplate.strName);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::ORIGIN_PATH) == 0)
+	{
+		return Trimmed(paramTemplate.strOriginPath);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::DEST_PATH) == 0)
+	{
+		return Trimmed(paramTemplate.strDestPath);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::ENABLE_MOVE) == 0)
+	{
+		return paramTemplate.bEnableMove ? _T("1") : _T("0");
+	}
+	if (_tcscmp(lpszKey, TemplateKey::BOOT_START) == 0)
+	{
+		return paramTemplate.bBootStart ? _T("1") : _T("0");
+	}
+	if (_tcscmp(lpszKey, TemplateKey::DRIVE_NAME) == 0)
+	{
+		return Trimmed(paramTemplate.strDriveName);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::LIMIT_MODE) == 0)
+	{
+		return paramTemplate.strLimitMode.IsEmpty() ? lpszDefault : Trimmed(paramTemplate.strLimitMode);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::LIMIT_VALUE) == 0)
+	{
+		return Trimmed(paramTemplate.strLimitValue);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::END_VALUE) == 0)
+	{
+		return Trimmed(paramTemplate.strEndValue);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::SCHEDULE_DAYS) == 0)
+	{
+		return Trimmed(paramTemplate.strScheduleDays);
+	}
+	if (_tcscmp(lpszKey, TemplateKey::SCHEDULE_TIME) == 0)
+	{
+		return Trimmed(paramTemplate.strScheduleTime);
+	}
+
+	return lpszDefault;
 }
 
 void CParameter::SetTemplateValue(PARAM_TEMPLATE& paramTemplate,
 	LPCTSTR lpszKey, LPCTSTR lpszValue)
 {
-	PARAM_TEMPLATE_VALUE* pValue = FindTemplateValue(paramTemplate, lpszKey);
-	if (pValue != nullptr)
+	CString strValue;
+	if (lpszValue != nullptr)
 	{
-		pValue->strValue = lpszValue;
+		strValue = lpszValue;
+	}
+	strValue.Trim();
+
+	if (lpszKey == nullptr)
+	{
 		return;
 	}
 
-	AddTemplateValue(paramTemplate, lpszKey, lpszValue);
+	if (_tcscmp(lpszKey, TemplateKey::NAME) == 0)
+	{
+		paramTemplate.strName = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::ORIGIN_PATH) == 0)
+	{
+		paramTemplate.strOriginPath = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::DEST_PATH) == 0)
+	{
+		paramTemplate.strDestPath = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::ENABLE_MOVE) == 0)
+	{
+		paramTemplate.bEnableMove = IsTrueValue(strValue);
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::BOOT_START) == 0)
+	{
+		paramTemplate.bBootStart = IsTrueValue(strValue);
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::DRIVE_NAME) == 0)
+	{
+		paramTemplate.strDriveName = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::LIMIT_MODE) == 0)
+	{
+		paramTemplate.strLimitMode = strValue.IsEmpty() ? TemplateKey::LIMIT_MODE_STORAGE : strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::LIMIT_VALUE) == 0)
+	{
+		paramTemplate.strLimitValue = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::END_VALUE) == 0)
+	{
+		paramTemplate.strEndValue = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::SCHEDULE_DAYS) == 0)
+	{
+		paramTemplate.strScheduleDays = strValue;
+	}
+	else if (_tcscmp(lpszKey, TemplateKey::SCHEDULE_TIME) == 0)
+	{
+		paramTemplate.strScheduleTime = strValue;
+	}
 }
 
 void CParameter::AddTemplateValue(PARAM_TEMPLATE& paramTemplate,
 	LPCTSTR lpszKey, const CString& strValue)
 {
-	PARAM_TEMPLATE_VALUE value;
-	value.strKey = lpszKey;
-	value.strValue = strValue;
-	paramTemplate.vecValue.push_back(value);
+	SetTemplateValue(paramTemplate, lpszKey, strValue);
 }
 
 BOOL CParameter::IsScheduleLimitMode(const PARAM_TEMPLATE& paramTemplate)
@@ -215,10 +287,7 @@ BOOL CParameter::LoadTemplate()
 		const std::vector<PROFILE_ENTRY> vecEntry = ReadProfileSection(GetTemplateSection(paramTemplate.strName), m_strIniPath);
 		for (int j = 0; j < static_cast<int>(vecEntry.size()); ++j)
 		{
-			PARAM_TEMPLATE_VALUE value;
-			value.strKey = vecEntry[j].strKey;
-			value.strValue = vecEntry[j].strValue;
-			paramTemplate.vecValue.push_back(value);
+			SetTemplateValue(paramTemplate, vecEntry[j].strKey, vecEntry[j].strValue);
 		}
 
 		m_vecTemplate.push_back(paramTemplate);
@@ -262,12 +331,20 @@ BOOL CParameter::SaveTemplate()
 			return FALSE;
 		}
 
-		for (int j = 0; j < static_cast<int>(m_vecTemplate[i].vecValue.size()); ++j)
+		const PARAM_TEMPLATE& paramTemplate = m_vecTemplate[i];
+		if (!WriteString(strTemplateSection, TemplateKey::NAME, paramTemplate.strName)
+			|| !WriteString(strTemplateSection, TemplateKey::ORIGIN_PATH, paramTemplate.strOriginPath)
+			|| !WriteString(strTemplateSection, TemplateKey::DEST_PATH, paramTemplate.strDestPath)
+			|| !WriteString(strTemplateSection, TemplateKey::ENABLE_MOVE, paramTemplate.bEnableMove ? _T("1") : _T("0"))
+			|| !WriteString(strTemplateSection, TemplateKey::BOOT_START, paramTemplate.bBootStart ? _T("1") : _T("0"))
+			|| !WriteString(strTemplateSection, TemplateKey::DRIVE_NAME, paramTemplate.strDriveName)
+			|| !WriteString(strTemplateSection, TemplateKey::LIMIT_MODE, paramTemplate.strLimitMode)
+			|| !WriteString(strTemplateSection, TemplateKey::LIMIT_VALUE, paramTemplate.strLimitValue)
+			|| !WriteString(strTemplateSection, TemplateKey::END_VALUE, paramTemplate.strEndValue)
+			|| !WriteString(strTemplateSection, TemplateKey::SCHEDULE_DAYS, paramTemplate.strScheduleDays)
+			|| !WriteString(strTemplateSection, TemplateKey::SCHEDULE_TIME, paramTemplate.strScheduleTime))
 		{
-			if (!WriteString(strTemplateSection, m_vecTemplate[i].vecValue[j].strKey, m_vecTemplate[i].vecValue[j].strValue))
-			{
-				return FALSE;
-			}
+			return FALSE;
 		}
 	}
 
