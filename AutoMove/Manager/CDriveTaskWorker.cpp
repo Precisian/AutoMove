@@ -82,7 +82,6 @@ void CDriveTaskWorker::Stop()
 	}
 
 	CSingleLock stateLock(&m_csState, TRUE);
-	m_hWorkingPathItemWnd = nullptr;
 	m_strWorkingTemplateName.Empty();
 	m_bCancelCurrent = FALSE;
 	m_hOwnerWnd = nullptr;
@@ -105,24 +104,16 @@ BOOL CDriveTaskWorker::Enqueue(const DRIVE_TASK& task)
 		return FALSE;
 	}
 
+	if (IsWorking(task.strTemplateName))
 	{
-		CSingleLock stateLock(&m_csState, TRUE);
-		if (MatchesWorkingTask(MakeTaskMatchKey(task.hPathItemWnd))
-			|| MatchesWorkingTask(MakeTaskMatchKey(task.strTemplateName)))
-		{
-			return FALSE;
-		}
+		return FALSE;
 	}
 
 	{
 		CSingleLock queueLock(&m_csQueue, TRUE);
-		for (const DRIVE_TASK& queuedTask : m_queue)
+		if (HasQueuedTask(task.strTemplateName))
 		{
-			if (MatchesTask(queuedTask, MakeTaskMatchKey(task.hPathItemWnd))
-				|| MatchesTask(queuedTask, MakeTaskMatchKey(task.strTemplateName)))
-			{
-				return FALSE;
-			}
+			return FALSE;
 		}
 		m_queue.push_back(task);
 	}
@@ -131,17 +122,12 @@ BOOL CDriveTaskWorker::Enqueue(const DRIVE_TASK& task)
 	return TRUE;
 }
 
-BOOL CDriveTaskWorker::Cancel(HWND hPathItemWnd)
-{
-	return CancelTask(MakeTaskMatchKey(hPathItemWnd));
-}
-
 BOOL CDriveTaskWorker::Cancel(LPCTSTR lpszTemplateName)
 {
-	return CancelTask(MakeTaskMatchKey(lpszTemplateName));
+	return CancelTask(lpszTemplateName);
 }
 
-BOOL CDriveTaskWorker::CancelTask(const TASK_MATCH_KEY& key)
+BOOL CDriveTaskWorker::CancelTask(LPCTSTR lpszTemplateName)
 {
 	BOOL bCanceled = FALSE;
 	std::vector<DRIVE_TASK> vecCanceledTasks;
@@ -150,7 +136,7 @@ BOOL CDriveTaskWorker::CancelTask(const TASK_MATCH_KEY& key)
 		CSingleLock queueLock(&m_csQueue, TRUE);
 		for (auto iter = m_queue.begin(); iter != m_queue.end();)
 		{
-			if (MatchesTask(*iter, key))
+			if (MatchesTask(*iter, lpszTemplateName))
 			{
 				vecCanceledTasks.push_back(*iter);
 				iter = m_queue.erase(iter);
@@ -166,27 +152,34 @@ BOOL CDriveTaskWorker::CancelTask(const TASK_MATCH_KEY& key)
 	ResetQueueEventIfEmpty();
 	NotifyCanceledTasks(vecCanceledTasks);
 
+	if (IsWorking(lpszTemplateName))
 	{
 		CSingleLock stateLock(&m_csState, TRUE);
-		if (MatchesWorkingTask(key))
-		{
-			m_bCancelCurrent = TRUE;
-			bCanceled = TRUE;
-		}
+		m_bCancelCurrent = TRUE;
+		bCanceled = TRUE;
 	}
 
 	return bCanceled;
 }
-BOOL CDriveTaskWorker::IsQueued(HWND hPathItemWnd) const
+BOOL CDriveTaskWorker::IsQueued(LPCTSTR lpszTemplateName) const
 {
 	CSingleLock queueLock(&m_csQueue, TRUE);
-	return HasQueuedTask(MakeTaskMatchKey(hPathItemWnd));
+	return HasQueuedTask(lpszTemplateName);
 }
 
-BOOL CDriveTaskWorker::IsWorking(HWND hPathItemWnd) const
+BOOL CDriveTaskWorker::IsWorking(LPCTSTR lpszTemplateName) const
 {
+	CString strTemplateName;
+	if (lpszTemplateName != nullptr)
+	{
+		strTemplateName = lpszTemplateName;
+		strTemplateName.Trim();
+	}
+
 	CSingleLock stateLock(&m_csState, TRUE);
-	return m_hWorkingPathItemWnd == hPathItemWnd;
+	return !strTemplateName.IsEmpty()
+		&& !m_strWorkingTemplateName.IsEmpty()
+		&& m_strWorkingTemplateName.CompareNoCase(strTemplateName) == 0;
 }
 
 UINT CDriveTaskWorker::ThreadProc(LPVOID pParam)
@@ -227,7 +220,6 @@ UINT CDriveTaskWorker::Run()
 
 			{
 				CSingleLock stateLock(&m_csState, TRUE);
-				m_hWorkingPathItemWnd = task.hPathItemWnd;
 				m_strWorkingTemplateName = task.strTemplateName;
 				m_bCancelCurrent = FALSE;
 			}
@@ -240,7 +232,6 @@ UINT CDriveTaskWorker::Run()
 
 			{
 				CSingleLock stateLock(&m_csState, TRUE);
-				m_hWorkingPathItemWnd = nullptr;
 				m_strWorkingTemplateName.Empty();
 				m_bCancelCurrent = FALSE;
 			}
@@ -432,52 +423,24 @@ BOOL CDriveTaskWorker::HasReachedEndUsage(const DRIVE_TASK& task) const
 	return nUsagePercent >= 0 && nUsagePercent <= task.nEndUsagePercent;
 }
 
-CDriveTaskWorker::TASK_MATCH_KEY CDriveTaskWorker::MakeTaskMatchKey(HWND hPathItemWnd) const
+BOOL CDriveTaskWorker::MatchesTask(const DRIVE_TASK& task, LPCTSTR lpszTemplateName) const
 {
-	TASK_MATCH_KEY key;
-	key.hPathItemWnd = hPathItemWnd;
-	return key;
-}
-
-CDriveTaskWorker::TASK_MATCH_KEY CDriveTaskWorker::MakeTaskMatchKey(LPCTSTR lpszTemplateName) const
-{
-	TASK_MATCH_KEY key;
+	CString strTemplateName;
 	if (lpszTemplateName != nullptr)
 	{
-		key.strTemplateName = lpszTemplateName;
-		key.strTemplateName.Trim();
-	}
-	return key;
-}
-
-BOOL CDriveTaskWorker::MatchesTask(const DRIVE_TASK& task, const TASK_MATCH_KEY& key) const
-{
-	if (key.hPathItemWnd != nullptr)
-	{
-		return task.hPathItemWnd == key.hPathItemWnd;
+		strTemplateName = lpszTemplateName;
+		strTemplateName.Trim();
 	}
 
-	return !key.strTemplateName.IsEmpty()
-		&& task.strTemplateName.CompareNoCase(key.strTemplateName) == 0;
+	return !strTemplateName.IsEmpty()
+		&& task.strTemplateName.CompareNoCase(strTemplateName) == 0;
 }
 
-BOOL CDriveTaskWorker::MatchesWorkingTask(const TASK_MATCH_KEY& key) const
-{
-	if (key.hPathItemWnd != nullptr)
-	{
-		return m_hWorkingPathItemWnd == key.hPathItemWnd;
-	}
-
-	return !key.strTemplateName.IsEmpty()
-		&& !m_strWorkingTemplateName.IsEmpty()
-		&& m_strWorkingTemplateName.CompareNoCase(key.strTemplateName) == 0;
-}
-
-BOOL CDriveTaskWorker::HasQueuedTask(const TASK_MATCH_KEY& key) const
+BOOL CDriveTaskWorker::HasQueuedTask(LPCTSTR lpszTemplateName) const
 {
 	for (const DRIVE_TASK& task : m_queue)
 	{
-		if (MatchesTask(task, key))
+		if (MatchesTask(task, lpszTemplateName))
 		{
 			return TRUE;
 		}

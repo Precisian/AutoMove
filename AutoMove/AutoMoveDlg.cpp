@@ -398,15 +398,14 @@ LRESULT CAutoMoveDlg::OnPathItemStateChanged(WPARAM wParam, LPARAM lParam)
 					pItem->SetWaitingEvent(FALSE);
 				}
 				else if (!EnqueueDriveTask(*pTemplate, pItem)
-					&& !m_driveTaskWorker.IsQueued(pItem->GetSafeHwnd())
-					&& !m_driveTaskWorker.IsWorking(pItem->GetSafeHwnd()))
+					&& !m_driveTaskWorker.IsQueued(pTemplate->strName)
+					&& !m_driveTaskWorker.IsWorking(pTemplate->strName))
 				{
 					pItem->SetWaitingEvent(FALSE);
 				}
 			}
 			else if (!pItem->IsWaitingEvent() && !pItem->IsWorkingMoveCopy())
 			{
-				m_driveTaskWorker.Cancel(pItem->GetSafeHwnd());
 				m_driveTaskWorker.Cancel(pTemplate->strName);
 			}
 		}
