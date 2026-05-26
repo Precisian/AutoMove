@@ -7,6 +7,7 @@
 #include "CParameter.h"
 #include "DriveInfo.h"
 #include "Dialog/CDriveUsageItem.h"
+#include "Manager/CDriveTaskWorker.h"
 #include <vector>
 
 #define WM_TRAY_ICON (WM_USER + 1)
@@ -51,6 +52,7 @@ public:
 	HANDLE m_hDriveUsageStopEvent;
 	std::vector<DRIVE_INFO> m_vecDriveInfos;
 	std::vector<CDriveUsageItem*> m_vecDriveUsageItems;
+	CDriveTaskWorker m_driveTaskWorker;
 
 	void AlignControls();
 	void SetTrayIcon();
@@ -68,12 +70,28 @@ public:
 	void StartDriveUsageThread();
 	void StopDriveUsageThread();
 	static UINT DriveUsageThreadProc(LPVOID pParam);
+	BOOL EnsureDriveTaskWorkerStarted();
+	CParameter::PARAM_TEMPLATE* FindTemplateByName(LPCTSTR lpszTemplateName);
+	const CParameter::PARAM_TEMPLATE* FindTemplateByName(LPCTSTR lpszTemplateName) const;
+	CPathItem* FindPathItemByHwnd(HWND hPathItemWnd) const;
+	CPathItem* FindPathItemByTemplateName(LPCTSTR lpszTemplateName) const;
+	BOOL EnqueueDriveTask(CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem);
+	void MarkScheduleTaskRunDate(CParameter::PARAM_TEMPLATE& paramTemplate);
+	DRIVE_TASK BuildDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, CPathItem* pPathItem) const;
+	void ResetPathItemTaskState();
+	int EnqueueTriggeredDriveTasks(const std::vector<DRIVE_INFO>& vecDriveInfos);
+	BOOL ShouldTriggerDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const std::vector<DRIVE_INFO>& vecDriveInfos) const;
+	BOOL ShouldTriggerScheduleTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const SYSTEMTIME& now) const;
+	BOOL IsScheduleDayMatched(const CString& strScheduleDays, WORD wDayOfWeek) const;
+	CString GetScheduleRunDate(const SYSTEMTIME& time) const;
 
 	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 	afx_msg void OnBnClickedBtSystemOpen();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg LRESULT OnPathItemStateChanged(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDriveUsageUpdated(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnDriveTaskStarted(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnDriveTaskFinished(WPARAM wParam, LPARAM lParam);
 	
 	
 	// 트레이 아이콘 메시지 처리

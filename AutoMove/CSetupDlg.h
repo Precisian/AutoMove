@@ -29,6 +29,7 @@ public:
 	CListScrollView* m_pScrollView;
 	afx_msg void OnBnClickedBtnSystemAdditem();
 	afx_msg void OnBnClickedCheckAutoStart();
+	afx_msg void OnBnClickedBtnSetupTestStart();
 
 private:
 	void LoadParameterToControls();

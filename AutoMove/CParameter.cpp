@@ -1,9 +1,82 @@
 #include "pch.h"
 #include "CParameter.h"
 
+namespace
+{
+	constexpr DWORD PROFILE_BUFFER_SIZE = 32767;
+
+	struct PROFILE_ENTRY
+	{
+		CString strKey;
+		CString strValue;
+	};
+
+	bool SplitProfileEntry(const CString& strLine, PROFILE_ENTRY& entry)
+	{
+		const int nEqual = strLine.Find(_T('='));
+		if (nEqual <= 0)
+		{
+			return false;
+		}
+
+		entry.strKey = strLine.Left(nEqual);
+		entry.strValue = strLine.Mid(nEqual + 1);
+		return true;
+	}
+
+	std::vector<PROFILE_ENTRY> ReadProfileSection(LPCTSTR lpszSection, LPCTSTR lpszIniPath)
+	{
+		CString strSectionData;
+		LPTSTR lpszBuffer = strSectionData.GetBuffer(PROFILE_BUFFER_SIZE);
+
+		GetPrivateProfileSection(lpszSection, lpszBuffer, PROFILE_BUFFER_SIZE, lpszIniPath);
+		strSectionData.ReleaseBuffer();
+
+		std::vector<PROFILE_ENTRY> vecEntry;
+		LPCTSTR lpszItem = strSectionData;
+		while (*lpszItem != _T('\0'))
+		{
+			PROFILE_ENTRY entry;
+			if (SplitProfileEntry(CString(lpszItem), entry))
+			{
+				vecEntry.push_back(entry);
+			}
+
+			lpszItem += _tcslen(lpszItem) + 1;
+		}
+
+		return vecEntry;
+	}
+
+	CParameter::PARAM_TEMPLATE_VALUE* FindTemplateValue(CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey)
+	{
+		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+		{
+			if (paramTemplate.vecValue[i].strKey == lpszKey)
+			{
+				return &paramTemplate.vecValue[i];
+			}
+		}
+
+		return nullptr;
+	}
+
+	const CParameter::PARAM_TEMPLATE_VALUE* FindTemplateValue(const CParameter::PARAM_TEMPLATE& paramTemplate, LPCTSTR lpszKey)
+	{
+		for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+		{
+			if (paramTemplate.vecValue[i].strKey == lpszKey)
+			{
+				return &paramTemplate.vecValue[i];
+			}
+		}
+
+		return nullptr;
+	}
+}
+
 CParameter::CParameter()
 	: m_strIniPath(DEFAULT_INI_PATH)
-	, m_eMode(PARAM_LOAD)
 {
 	InitDefault();
 }
@@ -23,8 +96,6 @@ BOOL CParameter::Load()
 		return Save();
 	}
 
-	m_eMode = PARAM_LOAD;
-
 	BOOL bResult = TRUE;
 	bResult &= LoadTemplate();
 
@@ -33,8 +104,6 @@ BOOL CParameter::Load()
 
 BOOL CParameter::Save()
 {
-	m_eMode = PARAM_SAVE;
-
 	BOOL bResult = TRUE;
 	WritePrivateProfileString(_T("System"), nullptr, nullptr, m_strIniPath);
 	bResult &= SaveTemplate();
@@ -93,29 +162,25 @@ CString CParameter::GetIniPath() const
 CString CParameter::GetTemplateValue(const PARAM_TEMPLATE& paramTemplate,
 	LPCTSTR lpszKey, LPCTSTR lpszDefault)
 {
-	for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+	const PARAM_TEMPLATE_VALUE* pValue = FindTemplateValue(paramTemplate, lpszKey);
+	if (pValue == nullptr)
 	{
-		if (paramTemplate.vecValue[i].strKey == lpszKey)
-		{
-			CString strValue = paramTemplate.vecValue[i].strValue;
-			strValue.Trim();
-			return strValue;
-		}
+		return lpszDefault;
 	}
 
-	return lpszDefault;
+	CString strValue = pValue->strValue;
+	strValue.Trim();
+	return strValue;
 }
 
 void CParameter::SetTemplateValue(PARAM_TEMPLATE& paramTemplate,
 	LPCTSTR lpszKey, LPCTSTR lpszValue)
 {
-	for (int i = 0; i < static_cast<int>(paramTemplate.vecValue.size()); ++i)
+	PARAM_TEMPLATE_VALUE* pValue = FindTemplateValue(paramTemplate, lpszKey);
+	if (pValue != nullptr)
 	{
-		if (paramTemplate.vecValue[i].strKey == lpszKey)
-		{
-			paramTemplate.vecValue[i].strValue = lpszValue;
-			return;
-		}
+		pValue->strValue = lpszValue;
+		return;
 	}
 
 	AddTemplateValue(paramTemplate, lpszKey, lpszValue);
@@ -146,30 +211,14 @@ BOOL CParameter::LoadTemplate()
 	{
 		PARAM_TEMPLATE paramTemplate;
 		paramTemplate.strName = vecTemplateNames[i];
-		const CString strTemplateSection = GetTemplateSection(paramTemplate.strName);
 
-		const DWORD dwBufferSize = 32767;
-		CString strTemplateData;
-		LPTSTR lpszTemplateBuffer = strTemplateData.GetBuffer(dwBufferSize);
-
-		GetPrivateProfileSection(strTemplateSection, lpszTemplateBuffer, dwBufferSize, m_strIniPath);
-		strTemplateData.ReleaseBuffer();
-
-		LPCTSTR lpszTemplateItem = strTemplateData;
-		while (*lpszTemplateItem != _T('\0'))
+		const std::vector<PROFILE_ENTRY> vecEntry = ReadProfileSection(GetTemplateSection(paramTemplate.strName), m_strIniPath);
+		for (int j = 0; j < static_cast<int>(vecEntry.size()); ++j)
 		{
-			CString strTemplateItem(lpszTemplateItem);
-			const int nTemplateEqual = strTemplateItem.Find(_T('='));
-
-			if (nTemplateEqual > 0)
-			{
-				PARAM_TEMPLATE_VALUE value;
-				value.strKey = strTemplateItem.Left(nTemplateEqual);
-				value.strValue = strTemplateItem.Mid(nTemplateEqual + 1);
-				paramTemplate.vecValue.push_back(value);
-			}
-
-			lpszTemplateItem += _tcslen(lpszTemplateItem) + 1;
+			PARAM_TEMPLATE_VALUE value;
+			value.strKey = vecEntry[j].strKey;
+			value.strValue = vecEntry[j].strValue;
+			paramTemplate.vecValue.push_back(value);
 		}
 
 		m_vecTemplate.push_back(paramTemplate);
@@ -182,25 +231,10 @@ void CParameter::LoadTemplateNames(std::vector<CString>& vecTemplateNames) const
 {
 	vecTemplateNames.clear();
 
-	const DWORD dwBufferSize = 32767;
-	CString strSection;
-	LPTSTR lpszBuffer = strSection.GetBuffer(dwBufferSize);
-
-	GetPrivateProfileSection(TEMPLATE_SECTION, lpszBuffer, dwBufferSize, m_strIniPath);
-	strSection.ReleaseBuffer();
-
-	LPCTSTR lpszItem = strSection;
-	while (*lpszItem != _T('\0'))
+	const std::vector<PROFILE_ENTRY> vecEntry = ReadProfileSection(TEMPLATE_SECTION, m_strIniPath);
+	for (int i = 0; i < static_cast<int>(vecEntry.size()); ++i)
 	{
-		CString strItem(lpszItem);
-		const int nEqual = strItem.Find(_T('='));
-
-		if (nEqual > 0)
-		{
-			vecTemplateNames.push_back(strItem.Left(nEqual));
-		}
-
-		lpszItem += _tcslen(lpszItem) + 1;
+		vecTemplateNames.push_back(vecEntry[i].strKey);
 	}
 }
 
