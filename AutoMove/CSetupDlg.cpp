@@ -3,12 +3,15 @@
 #include "CSetupItem.h"
 #include "CTestDlg.h"
 #include "Manager/CDriveManager.h"
+#include "Manager/FileSystemUtil.h"
 
 namespace
 {
 	constexpr LPCTSTR ERROR_DUPLICATE_NAME = _T("'%s' 항목의 이름이 중복되었습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_ORIGIN_PATH = _T("'%s' 항목의 대상경로가 비어 있습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_DEST_PATH = _T("'%s' 항목의 이동경로가 비어 있습니다.");
+	constexpr LPCTSTR ERROR_UNSAFE_ORIGIN_PATH = _T("'%s' 항목의 대상경로는 고정 드라이브의 안전한 하위 폴더여야 합니다.");
+	constexpr LPCTSTR ERROR_INVALID_DEST_PATH = _T("'%s' 항목의 이동경로는 대상경로와 같거나 서로의 하위 폴더일 수 없습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_LIMIT_VALUE = _T("'%s' 항목의 용량 값이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_LIMIT_VALUE = _T("'%s' 항목의 용량 값은 1~100 사이의 숫자여야 합니다.");
 	constexpr LPCTSTR ERROR_EMPTY_END_VALUE = _T("'%s' 항목의 종료 용량 값이 비어 있습니다.");
@@ -281,10 +284,20 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	{
 		AddError(vecErrors, ERROR_EMPTY_ORIGIN_PATH, strName);
 	}
+	else if (!AutoMoveFileSystem::IsSafeWorkRoot(strOriginPath))
+	{
+		AddError(vecErrors, ERROR_UNSAFE_ORIGIN_PATH, strName);
+	}
 
 	if (strEnableMove == _T("1") && strDestPath.IsEmpty())
 	{
 		AddError(vecErrors, ERROR_EMPTY_DEST_PATH, strName);
+	}
+	else if (strEnableMove == _T("1")
+		&& (AutoMoveFileSystem::IsSameOrChildPath(strOriginPath, strDestPath)
+			|| AutoMoveFileSystem::IsSameOrChildPath(strDestPath, strOriginPath)))
+	{
+		AddError(vecErrors, ERROR_INVALID_DEST_PATH, strName);
 	}
 
 	if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)

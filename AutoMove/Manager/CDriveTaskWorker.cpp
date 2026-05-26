@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "CDriveTaskWorker.h"
 #include "CDriveManager.h"
+#include "FileSystemUtil.h"
 #include <vector>
 
 namespace
@@ -345,6 +346,12 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 		return DRIVE_TASK_RESULT::Failed;
 	}
 
+	if (!AutoMoveFileSystem::IsSafeWorkRoot(strOriginPath))
+	{
+		strMessage = _T("대상 경로가 안전한 작업 폴더가 아닙니다.");
+		return DRIVE_TASK_RESULT::Failed;
+	}
+
 	CDriveFileManager driveFileManager;
 	if (HasReachedEndUsage(task))
 	{
@@ -357,6 +364,14 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 	if (task.eType == DRIVE_TASK_TYPE::MoveFiles && strDestPath.IsEmpty())
 	{
 		strMessage = _T("이동 경로가 비어 있습니다.");
+		return DRIVE_TASK_RESULT::Failed;
+	}
+
+	if (task.eType == DRIVE_TASK_TYPE::MoveFiles
+		&& (AutoMoveFileSystem::IsSameOrChildPath(strOriginPath, strDestPath)
+			|| AutoMoveFileSystem::IsSameOrChildPath(strDestPath, strOriginPath)))
+	{
+		strMessage = _T("이동 경로가 대상 경로와 같거나 서로의 하위 폴더입니다.");
 		return DRIVE_TASK_RESULT::Failed;
 	}
 
