@@ -360,10 +360,10 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 		return DRIVE_TASK_RESULT::Failed;
 	}
 
-	const std::vector<CString> vecFiles = task.eType == DRIVE_TASK_TYPE::MoveFiles
+	const std::vector<CString> vecItems = task.eType == DRIVE_TASK_TYPE::MoveFiles
 		? driveFileManager.FindMoveItems(strOriginPath)
 		: driveFileManager.FindFiles(strOriginPath);
-	for (int i = 0; i < static_cast<int>(vecFiles.size()); ++i)
+	for (int i = 0; i < static_cast<int>(vecItems.size()); ++i)
 	{
 		if (IsStopRequested(m_hStopEvent) || ShouldCancelCurrent())
 		{
@@ -379,14 +379,14 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 
 		if (task.eType == DRIVE_TASK_TYPE::MoveFiles)
 		{
-			driveFileManager.MovePath(vecFiles[i], strDestPath);
+			driveFileManager.MovePath(vecItems[i], strDestPath);
 		}
 		else
 		{
-			driveFileManager.RemovePath(vecFiles[i]);
+			driveFileManager.RemovePath(vecItems[i]);
 		}
 
-		if ((i % 8) == 0)
+		if (((i + 1) % 8) == 0)
 		{
 			if (WaitForSingleObject(m_hStopEvent, TASK_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 			{
