@@ -106,10 +106,8 @@ BOOL CDriveTaskWorker::Enqueue(const DRIVE_TASK& task)
 
 	{
 		CSingleLock stateLock(&m_csState, TRUE);
-		if ((task.hPathItemWnd != nullptr && m_hWorkingPathItemWnd == task.hPathItemWnd)
-			|| (!task.strTemplateName.IsEmpty()
-				&& !m_strWorkingTemplateName.IsEmpty()
-				&& m_strWorkingTemplateName.CompareNoCase(task.strTemplateName) == 0))
+		if (MatchesWorkingTask(MakeTaskMatchKey(task.hPathItemWnd))
+			|| MatchesWorkingTask(MakeTaskMatchKey(task.strTemplateName)))
 		{
 			return FALSE;
 		}
@@ -119,8 +117,8 @@ BOOL CDriveTaskWorker::Enqueue(const DRIVE_TASK& task)
 		CSingleLock queueLock(&m_csQueue, TRUE);
 		for (const DRIVE_TASK& queuedTask : m_queue)
 		{
-			if (IsSamePathItem(queuedTask, task.hPathItemWnd)
-				|| IsSameTemplate(queuedTask, task.strTemplateName))
+			if (MatchesTask(queuedTask, MakeTaskMatchKey(task.hPathItemWnd))
+				|| MatchesTask(queuedTask, MakeTaskMatchKey(task.strTemplateName)))
 			{
 				return FALSE;
 			}
@@ -134,47 +132,16 @@ BOOL CDriveTaskWorker::Enqueue(const DRIVE_TASK& task)
 
 BOOL CDriveTaskWorker::Cancel(HWND hPathItemWnd)
 {
-	BOOL bCanceled = FALSE;
-	std::vector<DRIVE_TASK> vecCanceledTasks;
-
-	{
-		CSingleLock queueLock(&m_csQueue, TRUE);
-		for (auto iter = m_queue.begin(); iter != m_queue.end();)
-		{
-			if (IsSamePathItem(*iter, hPathItemWnd))
-			{
-				vecCanceledTasks.push_back(*iter);
-				iter = m_queue.erase(iter);
-				bCanceled = TRUE;
-			}
-			else
-			{
-				++iter;
-			}
-		}
-	}
-
-	ResetQueueEventIfEmpty();
-
-	for (int i = 0; i < static_cast<int>(vecCanceledTasks.size()); ++i)
-	{
-		NotifyFinished(vecCanceledTasks[i], DRIVE_TASK_RESULT::Canceled, _T("Task canceled."));
-	}
-
-	{
-		CSingleLock stateLock(&m_csState, TRUE);
-		if (m_hWorkingPathItemWnd == hPathItemWnd)
-		{
-			m_bCancelCurrent = TRUE;
-			bCanceled = TRUE;
-		}
-	}
-
-	return bCanceled;
+	return CancelTask(MakeTaskMatchKey(hPathItemWnd));
 }
 
 BOOL CDriveTaskWorker::Cancel(LPCTSTR lpszTemplateName)
 {
+	return CancelTask(MakeTaskMatchKey(lpszTemplateName));
+}
+
+BOOL CDriveTaskWorker::CancelTask(const TASK_MATCH_KEY& key)
+{
 	BOOL bCanceled = FALSE;
 	std::vector<DRIVE_TASK> vecCanceledTasks;
 
@@ -182,7 +149,7 @@ BOOL CDriveTaskWorker::Cancel(LPCTSTR lpszTemplateName)
 		CSingleLock queueLock(&m_csQueue, TRUE);
 		for (auto iter = m_queue.begin(); iter != m_queue.end();)
 		{
-			if (IsSameTemplate(*iter, lpszTemplateName))
+			if (MatchesTask(*iter, key))
 			{
 				vecCanceledTasks.push_back(*iter);
 				iter = m_queue.erase(iter);
@@ -196,23 +163,11 @@ BOOL CDriveTaskWorker::Cancel(LPCTSTR lpszTemplateName)
 	}
 
 	ResetQueueEventIfEmpty();
-
-	for (int i = 0; i < static_cast<int>(vecCanceledTasks.size()); ++i)
-	{
-		NotifyFinished(vecCanceledTasks[i], DRIVE_TASK_RESULT::Canceled, _T("Task canceled."));
-	}
+	NotifyCanceledTasks(vecCanceledTasks);
 
 	{
 		CSingleLock stateLock(&m_csState, TRUE);
-		CString strTemplateName;
-		if (lpszTemplateName != nullptr)
-		{
-			strTemplateName = lpszTemplateName;
-		}
-		strTemplateName.Trim();
-		if (!strTemplateName.IsEmpty()
-			&& !m_strWorkingTemplateName.IsEmpty()
-			&& m_strWorkingTemplateName.CompareNoCase(strTemplateName) == 0)
+		if (MatchesWorkingTask(key))
 		{
 			m_bCancelCurrent = TRUE;
 			bCanceled = TRUE;
@@ -221,19 +176,10 @@ BOOL CDriveTaskWorker::Cancel(LPCTSTR lpszTemplateName)
 
 	return bCanceled;
 }
-
 BOOL CDriveTaskWorker::IsQueued(HWND hPathItemWnd) const
 {
 	CSingleLock queueLock(&m_csQueue, TRUE);
-	for (const DRIVE_TASK& task : m_queue)
-	{
-		if (IsSamePathItem(task, hPathItemWnd))
-		{
-			return TRUE;
-		}
-	}
-
-	return FALSE;
+	return HasQueuedTask(MakeTaskMatchKey(hPathItemWnd));
 }
 
 BOOL CDriveTaskWorker::IsWorking(HWND hPathItemWnd) const
@@ -381,21 +327,37 @@ void CDriveTaskWorker::NotifyFinished(const DRIVE_TASK& task, DRIVE_TASK_RESULT 
 	}
 }
 
+void CDriveTaskWorker::NotifyCanceledTasks(const std::vector<DRIVE_TASK>& vecCanceledTasks) const
+{
+	for (int i = 0; i < static_cast<int>(vecCanceledTasks.size()); ++i)
+	{
+		NotifyFinished(vecCanceledTasks[i], DRIVE_TASK_RESULT::Canceled, _T("작업이 취소되었습니다."));
+	}
+}
+
 DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString& strMessage)
 {
 	CString strOriginPath = task.strOriginPath;
 	strOriginPath.Trim();
 	if (strOriginPath.IsEmpty())
 	{
-		strMessage = _T("Origin path is empty.");
+		strMessage = _T("대상 경로가 비어 있습니다.");
 		return DRIVE_TASK_RESULT::Failed;
 	}
 
 	CDriveFileManager driveFileManager;
 	if (HasReachedEndUsage(task))
 	{
-		strMessage = _T("End usage condition already reached.");
+		strMessage = _T("이미 종료 사용률 조건에 도달했습니다.");
 		return DRIVE_TASK_RESULT::Completed;
+	}
+
+	CString strDestPath = task.strDestPath;
+	strDestPath.Trim();
+	if (task.eType == DRIVE_TASK_TYPE::MoveFiles && strDestPath.IsEmpty())
+	{
+		strMessage = _T("이동 경로가 비어 있습니다.");
+		return DRIVE_TASK_RESULT::Failed;
 	}
 
 	const std::vector<CString> vecFiles = task.eType == DRIVE_TASK_TYPE::MoveFiles
@@ -405,47 +367,36 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 	{
 		if (IsStopRequested(m_hStopEvent) || ShouldCancelCurrent())
 		{
-			strMessage = _T("Task canceled.");
+			strMessage = _T("작업이 취소되었습니다.");
 			return DRIVE_TASK_RESULT::Canceled;
 		}
 
 		if (HasReachedEndUsage(task))
 		{
-			strMessage = _T("End usage condition reached.");
+			strMessage = _T("종료 사용률 조건에 도달했습니다.");
 			return DRIVE_TASK_RESULT::Completed;
 		}
 
-		std::vector<CString> vecSingleFile;
-		vecSingleFile.push_back(vecFiles[i]);
-
 		if (task.eType == DRIVE_TASK_TYPE::MoveFiles)
 		{
-			CString strDestPath = task.strDestPath;
-			strDestPath.Trim();
-			if (strDestPath.IsEmpty())
-			{
-				strMessage = _T("Destination path is empty.");
-				return DRIVE_TASK_RESULT::Failed;
-			}
-
-			driveFileManager.MoveFiles(vecSingleFile, strDestPath);
+			driveFileManager.MovePath(vecFiles[i], strDestPath);
 		}
 		else
 		{
-			driveFileManager.RemoveFiles(vecSingleFile);
+			driveFileManager.RemovePath(vecFiles[i]);
 		}
 
 		if ((i % 8) == 0)
 		{
 			if (WaitForSingleObject(m_hStopEvent, TASK_WAIT_TIMEOUT) == WAIT_OBJECT_0)
 			{
-				strMessage = _T("Task canceled.");
+				strMessage = _T("작업이 취소되었습니다.");
 				return DRIVE_TASK_RESULT::Canceled;
 			}
 		}
 	}
 
-	strMessage = _T("Task completed.");
+	strMessage = _T("작업이 완료되었습니다.");
 	return DRIVE_TASK_RESULT::Completed;
 }
 
@@ -466,17 +417,56 @@ BOOL CDriveTaskWorker::HasReachedEndUsage(const DRIVE_TASK& task) const
 	return nUsagePercent >= 0 && nUsagePercent <= task.nEndUsagePercent;
 }
 
-BOOL CDriveTaskWorker::IsSamePathItem(const DRIVE_TASK& task, HWND hPathItemWnd) const
+CDriveTaskWorker::TASK_MATCH_KEY CDriveTaskWorker::MakeTaskMatchKey(HWND hPathItemWnd) const
 {
-	return hPathItemWnd != nullptr && task.hPathItemWnd == hPathItemWnd;
+	TASK_MATCH_KEY key;
+	key.hPathItemWnd = hPathItemWnd;
+	return key;
 }
 
-BOOL CDriveTaskWorker::IsSameTemplate(const DRIVE_TASK& task, LPCTSTR lpszTemplateName) const
+CDriveTaskWorker::TASK_MATCH_KEY CDriveTaskWorker::MakeTaskMatchKey(LPCTSTR lpszTemplateName) const
 {
-	if (lpszTemplateName == nullptr || *lpszTemplateName == _T('\0'))
+	TASK_MATCH_KEY key;
+	if (lpszTemplateName != nullptr)
 	{
-		return FALSE;
+		key.strTemplateName = lpszTemplateName;
+		key.strTemplateName.Trim();
+	}
+	return key;
+}
+
+BOOL CDriveTaskWorker::MatchesTask(const DRIVE_TASK& task, const TASK_MATCH_KEY& key) const
+{
+	if (key.hPathItemWnd != nullptr)
+	{
+		return task.hPathItemWnd == key.hPathItemWnd;
 	}
 
-	return task.strTemplateName.CompareNoCase(lpszTemplateName) == 0;
+	return !key.strTemplateName.IsEmpty()
+		&& task.strTemplateName.CompareNoCase(key.strTemplateName) == 0;
+}
+
+BOOL CDriveTaskWorker::MatchesWorkingTask(const TASK_MATCH_KEY& key) const
+{
+	if (key.hPathItemWnd != nullptr)
+	{
+		return m_hWorkingPathItemWnd == key.hPathItemWnd;
+	}
+
+	return !key.strTemplateName.IsEmpty()
+		&& !m_strWorkingTemplateName.IsEmpty()
+		&& m_strWorkingTemplateName.CompareNoCase(key.strTemplateName) == 0;
+}
+
+BOOL CDriveTaskWorker::HasQueuedTask(const TASK_MATCH_KEY& key) const
+{
+	for (const DRIVE_TASK& task : m_queue)
+	{
+		if (MatchesTask(task, key))
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }

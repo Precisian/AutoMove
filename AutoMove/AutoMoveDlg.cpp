@@ -1,4 +1,4 @@
-ï»¿// AutoMoveDlg.cpp: êµ¬í˜„ íŒŒì¼
+// AutoMoveDlg.cpp: ±¸Çö ÆÄÀÏ
 //
 
 #include "pch.h"
@@ -28,22 +28,22 @@ namespace
 }
 
 
-// ì‘ìš© í”„ë¡œê·¸ë¨ ì •ë³´ì— ì‚¬ìš©ë˜ëŠ” CAboutDlg ëŒ€í™” ìƒìì…ë‹ˆë‹¤.
+// ÀÀ¿ë ÇÁ·Î±×·¥ Á¤º¸¿¡ »ç¿ëµÇ´Â CAboutDlg ´ëÈ­ »óÀÚÀÔ´Ï´Ù.
 
 class CAboutDlg : public CDialogEx
 {
 public:
 	CAboutDlg();
 
-// ëŒ€í™” ìƒì ë°ì´í„°ì…ë‹ˆë‹¤.
+// ´ëÈ­ »óÀÚ µ¥ÀÌÅÍÀÔ´Ï´Ù.
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
 
 	protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV ì§€ì›ì…ë‹ˆë‹¤.
+	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Áö¿øÀÔ´Ï´Ù.
 
-// êµ¬í˜„ì…ë‹ˆë‹¤.
+// ±¸ÇöÀÔ´Ï´Ù.
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -61,7 +61,7 @@ BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
 
-// CAutoMoveDlg ëŒ€í™” ìƒì
+// CAutoMoveDlg ´ëÈ­ »óÀÚ
 
 CAutoMoveDlg::CAutoMoveDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_AUTOMOVE_DIALOG, pParent)
@@ -107,15 +107,15 @@ BEGIN_MESSAGE_MAP(CAutoMoveDlg, CDialogEx)
 END_MESSAGE_MAP()
 
 
-// CAutoMoveDlg ë©”ì‹œì§€ ì²˜ë¦¬ê¸°
+// CAutoMoveDlg ¸Ş½ÃÁö Ã³¸®±â
 
 BOOL CAutoMoveDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
-	// ì‹œìŠ¤í…œ ë©”ë‰´ì— "ì •ë³´..." ë©”ë‰´ í•­ëª©ì„ ì¶”ê°€í•©ë‹ˆë‹¤.
+	// ½Ã½ºÅÛ ¸Ş´º¿¡ "Á¤º¸..." ¸Ş´º Ç×¸ñÀ» Ãß°¡ÇÕ´Ï´Ù.
 
-	// IDM_ABOUTBOXëŠ” ì‹œìŠ¤í…œ ëª…ë ¹ ë²”ìœ„ì— ìˆì–´ì•¼ í•©ë‹ˆë‹¤.
+	// IDM_ABOUTBOX´Â ½Ã½ºÅÛ ¸í·É ¹üÀ§¿¡ ÀÖ¾î¾ß ÇÕ´Ï´Ù.
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
 
@@ -133,12 +133,12 @@ BOOL CAutoMoveDlg::OnInitDialog()
 		}
 	}
 
-	// ì´ ëŒ€í™” ìƒìì˜ ì•„ì´ì½˜ì„ ì„¤ì •í•©ë‹ˆë‹¤.  ì‘ìš© í”„ë¡œê·¸ë¨ì˜ ì£¼ ì°½ì´ ëŒ€í™” ìƒìê°€ ì•„ë‹ ê²½ìš°ì—ëŠ”
-	//  í”„ë ˆì„ì›Œí¬ê°€ ì´ ì‘ì—…ì„ ìë™ìœ¼ë¡œ ìˆ˜í–‰í•©ë‹ˆë‹¤.
-	SetIcon(m_hIcon, TRUE);			// í° ì•„ì´ì½˜ì„ ì„¤ì •í•©ë‹ˆë‹¤.
-	SetIcon(m_hIcon, FALSE);		// ì‘ì€ ì•„ì´ì½˜ì„ ì„¤ì •í•©ë‹ˆë‹¤.
+	// ÀÌ ´ëÈ­ »óÀÚÀÇ ¾ÆÀÌÄÜÀ» ¼³Á¤ÇÕ´Ï´Ù.  ÀÀ¿ë ÇÁ·Î±×·¥ÀÇ ÁÖ Ã¢ÀÌ ´ëÈ­ »óÀÚ°¡ ¾Æ´Ò °æ¿ì¿¡´Â
+	//  ÇÁ·¹ÀÓ¿öÅ©°¡ ÀÌ ÀÛ¾÷À» ÀÚµ¿À¸·Î ¼öÇàÇÕ´Ï´Ù.
+	SetIcon(m_hIcon, TRUE);			// Å« ¾ÆÀÌÄÜÀ» ¼³Á¤ÇÕ´Ï´Ù.
+	SetIcon(m_hIcon, FALSE);		// ÀÛÀº ¾ÆÀÌÄÜÀ» ¼³Á¤ÇÕ´Ï´Ù.
 
-	// TODO: ì—¬ê¸°ì— ì¶”ê°€ ì´ˆê¸°í™” ì‘ì—…ì„ ì¶”ê°€í•©ë‹ˆë‹¤.
+	// TODO: ¿©±â¿¡ Ãß°¡ ÃÊ±âÈ­ ÀÛ¾÷À» Ãß°¡ÇÕ´Ï´Ù.
 	EnableDynamicLayout(TRUE);
 	SetTrayIcon();
 	m_pParam.Load();
@@ -149,17 +149,17 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	StartDriveUsageThread();
 	EnsureDriveTaskWorkerStarted();
 
-	// 1. Picture Control(IDC_STATIC_LIST_ITEM) ì˜ì—­ ì¢Œí‘œ ê°€ì ¸ì˜¤ê¸°
+	// 1. Picture Control(IDC_STATIC_LIST_ITEM) ¿µ¿ª ÁÂÇ¥ °¡Á®¿À±â
 	CRect rect;
 	CWnd* pWndPos = GetDlgItem(IDC_STATIC_MAIN_LIST);
 	pWndPos->GetWindowRect(&rect);
 	ScreenToClient(&rect);
-	pWndPos->ShowWindow(SW_HIDE); // ê°€ì´ë“œìš© ì»¨íŠ¸ë¡¤ì€ ìˆ¨ê¹€
+	pWndPos->ShowWindow(SW_HIDE); // °¡ÀÌµå¿ë ÄÁÆ®·ÑÀº ¼û±è
 
-	// 2. ìŠ¤í¬ë¡¤ë·° ë™ì  ìƒì„±
+	// 2. ½ºÅ©·Ñºä µ¿Àû »ı¼º
 	m_pScrollView = new CListScrollView(ITEM_PATH);
 
-	// 3. WS_VSCROLL ìŠ¤íƒ€ì¼ì„ ì¶”ê°€í•˜ì—¬ ë‚´ì¥ ìˆ˜ì§ ìŠ¤í¬ë¡¤ë°” í™œì„±í™”
+	// 3. WS_VSCROLL ½ºÅ¸ÀÏÀ» Ãß°¡ÇÏ¿© ³»Àå ¼öÁ÷ ½ºÅ©·Ñ¹Ù È°¼ºÈ­
 	if (!m_pScrollView->Create(NULL, NULL, WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER,
 		rect, this, 50001)) {
 		return FALSE;
@@ -169,7 +169,7 @@ BOOL CAutoMoveDlg::OnInitDialog()
 	ReloadPathItems();
 	UpdatePathItemBlinkTimer();
 
-	return TRUE;  // í¬ì»¤ìŠ¤ë¥¼ ì»¨íŠ¸ë¡¤ì— ì„¤ì •í•˜ì§€ ì•Šìœ¼ë©´ TRUEë¥¼ ë°˜í™˜í•©ë‹ˆë‹¤.
+	return TRUE;  // Æ÷Ä¿½º¸¦ ÄÁÆ®·Ñ¿¡ ¼³Á¤ÇÏÁö ¾ÊÀ¸¸é TRUE¸¦ ¹İÈ¯ÇÕ´Ï´Ù.
 }
 
 void CAutoMoveDlg::OnSysCommand(UINT nID, LPARAM lParam)
@@ -181,7 +181,7 @@ void CAutoMoveDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
 	else if ((nID & 0xFFF0) == SC_CLOSE)
 	{
-		// ìš°ì¸¡ ìƒë‹¨ ë‹«ê¸° ë²„íŠ¼ì„ ëˆ„ë¥´ë©´ ìµœì†Œí™”
+		// ¿ìÃø »ó´Ü ´İ±â ¹öÆ°À» ´©¸£¸é ÃÖ¼ÒÈ­
 		ShowWindow(SW_MINIMIZE);
 	}
 	else
@@ -190,19 +190,19 @@ void CAutoMoveDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
 }
 
-// ëŒ€í™” ìƒìì— ìµœì†Œí™” ë‹¨ì¶”ë¥¼ ì¶”ê°€í•  ê²½ìš° ì•„ì´ì½˜ì„ ê·¸ë¦¬ë ¤ë©´
-//  ì•„ë˜ ì½”ë“œê°€ í•„ìš”í•©ë‹ˆë‹¤.  ë¬¸ì„œ/ë·° ëª¨ë¸ì„ ì‚¬ìš©í•˜ëŠ” MFC ì• í”Œë¦¬ì¼€ì´ì…˜ì˜ ê²½ìš°ì—ëŠ”
-//  í”„ë ˆì„ì›Œí¬ì—ì„œ ì´ ì‘ì—…ì„ ìë™ìœ¼ë¡œ ìˆ˜í–‰í•©ë‹ˆë‹¤.
+// ´ëÈ­ »óÀÚ¿¡ ÃÖ¼ÒÈ­ ´ÜÃß¸¦ Ãß°¡ÇÒ °æ¿ì ¾ÆÀÌÄÜÀ» ±×¸®·Á¸é
+//  ¾Æ·¡ ÄÚµå°¡ ÇÊ¿äÇÕ´Ï´Ù.  ¹®¼­/ºä ¸ğµ¨À» »ç¿ëÇÏ´Â MFC ¾ÖÇÃ¸®ÄÉÀÌ¼ÇÀÇ °æ¿ì¿¡´Â
+//  ÇÁ·¹ÀÓ¿öÅ©¿¡¼­ ÀÌ ÀÛ¾÷À» ÀÚµ¿À¸·Î ¼öÇàÇÕ´Ï´Ù.
 
 void CAutoMoveDlg::OnPaint()
 {
 	if (IsIconic())
 	{
-		CPaintDC dc(this); // ê·¸ë¦¬ê¸°ë¥¼ ìœ„í•œ ë””ë°”ì´ìŠ¤ ì»¨í…ìŠ¤íŠ¸ì…ë‹ˆë‹¤.
+		CPaintDC dc(this); // ±×¸®±â¸¦ À§ÇÑ µğ¹ÙÀÌ½º ÄÁÅØ½ºÆ®ÀÔ´Ï´Ù.
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
-		// í´ë¼ì´ì–¸íŠ¸ ì‚¬ê°í˜•ì—ì„œ ì•„ì´ì½˜ì„ ê°€ìš´ë°ì— ë§ì¶¥ë‹ˆë‹¤.
+		// Å¬¶óÀÌ¾ğÆ® »ç°¢Çü¿¡¼­ ¾ÆÀÌÄÜÀ» °¡¿îµ¥¿¡ ¸ÂÃä´Ï´Ù.
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
 		CRect rect;
@@ -210,7 +210,7 @@ void CAutoMoveDlg::OnPaint()
 		int x = (rect.Width() - cxIcon + 1) / 2;
 		int y = (rect.Height() - cyIcon + 1) / 2;
 
-		// ì•„ì´ì½˜ì„ ê·¸ë¦½ë‹ˆë‹¤.
+		// ¾ÆÀÌÄÜÀ» ±×¸³´Ï´Ù.
 		dc.DrawIcon(x, y, m_hIcon);
 	}
 	else
@@ -219,8 +219,8 @@ void CAutoMoveDlg::OnPaint()
 	}
 }
 
-// ì‚¬ìš©ìê°€ ìµœì†Œí™”ëœ ì°½ì„ ë„ëŠ” ë™ì•ˆì— ì»¤ì„œê°€ í‘œì‹œë˜ë„ë¡ ì‹œìŠ¤í…œì—ì„œ
-//  ì´ í•¨ìˆ˜ë¥¼ í˜¸ì¶œí•©ë‹ˆë‹¤.
+// »ç¿ëÀÚ°¡ ÃÖ¼ÒÈ­µÈ Ã¢À» ²ô´Â µ¿¾È¿¡ Ä¿¼­°¡ Ç¥½ÃµÇµµ·Ï ½Ã½ºÅÛ¿¡¼­
+//  ÀÌ ÇÔ¼ö¸¦ È£ÃâÇÕ´Ï´Ù.
 HCURSOR CAutoMoveDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
@@ -228,7 +228,7 @@ HCURSOR CAutoMoveDlg::OnQueryDragIcon()
 
 void CAutoMoveDlg::OnBnClickedMainExit()
 {
-	int ret = MessageBox(_T("í”„ë¡œê·¸ë¨ì„ ì¢…ë£Œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?"), _T("ì¢…ë£Œ í™•ì¸"), MB_YESNO | MB_ICONQUESTION);
+	int ret = MessageBox(_T("ÇÁ·Î±×·¥À» Á¾·áÇÏ½Ã°Ú½À´Ï±î?"), _T("Á¾·á È®ÀÎ"), MB_YESNO | MB_ICONQUESTION);
 	if (ret == IDYES)
 	{
 		KillTimer(TIMER_PATHITEM_BLINK);
@@ -243,10 +243,10 @@ void CAutoMoveDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
 	const int nFixedHeight = GetFixedWindowHeight();
 
-	lpMMI->ptMinTrackSize.x = 400; // ìµœì†Œ ê°€ë¡œ
-	lpMMI->ptMinTrackSize.y = nFixedHeight; // ìµœì†Œ ì„¸ë¡œ
-	lpMMI->ptMaxTrackSize.x = 400; // ìµœëŒ€ ê°€ë¡œ
-	lpMMI->ptMaxTrackSize.y = nFixedHeight; // ìµœëŒ€ ì„¸ë¡œ
+	lpMMI->ptMinTrackSize.x = 400; // ÃÖ¼Ò °¡·Î
+	lpMMI->ptMinTrackSize.y = nFixedHeight; // ÃÖ¼Ò ¼¼·Î
+	lpMMI->ptMaxTrackSize.x = 400; // ÃÖ´ë °¡·Î
+	lpMMI->ptMaxTrackSize.y = nFixedHeight; // ÃÖ´ë ¼¼·Î
 
 	CDialogEx::OnGetMinMaxInfo(lpMMI);
 }
@@ -257,7 +257,7 @@ void CAutoMoveDlg::AlignControls()
 	GetClientRect(&rectClient);
 	const int cx = rectClient.Width();
 
-	// 1. ì»¨íŠ¸ë¡¤ ê°€ì ¸ì˜¤ê¸°
+	// 1. ÄÁÆ®·Ñ °¡Á®¿À±â
 	CWnd* pBtnClose = GetDlgItem(IDC_BTN_MAIN_EXIT);
 	CWnd* pBtnSetup = GetDlgItem(IDC_BTN_SETUP_OPEN);
 	CWnd* pBtnAllStart = GetDlgItem(IDC_BTN_MAIN_ALL_START);
@@ -266,13 +266,13 @@ void CAutoMoveDlg::AlignControls()
 	CWnd* pPic = GetDlgItem(IDC_STATIC_MAIN_LIST);
 
 	const int LEFT_MARGIN = 7;
-	const int RIGHT_MARGIN = 10; // ìš°ì¸¡ ëë‹¨ ë§ˆì§„
-	const int BOTTOM_MARGIN = 10; // í•˜ë‹¨ ë§ˆì§„
+	const int RIGHT_MARGIN = 10; // ¿ìÃø ³¡´Ü ¸¶Áø
+	const int BOTTOM_MARGIN = 10; // ÇÏ´Ü ¸¶Áø
 	const int SECTION_GAP = 8;
 
 	int nTopAreaBottom = 0;
 
-	// 2. ìš°ì¸¡ ë²„íŠ¼ë§Œ X ìœ„ì¹˜ë¥¼ ë§ì¶”ê³ , í¬ê¸°ì™€ Y ìœ„ì¹˜ëŠ” ë¦¬ì†ŒìŠ¤ ê°’ì„ ê·¸ëŒ€ë¡œ ì‚¬ìš©í•©ë‹ˆë‹¤.
+	// 2. ¿ìÃø ¹öÆ°¸¸ X À§Ä¡¸¦ ¸ÂÃß°í, Å©±â¿Í Y À§Ä¡´Â ¸®¼Ò½º °ªÀ» ±×´ë·Î »ç¿ëÇÕ´Ï´Ù.
 	if (pBtnSetup && pBtnSetup->GetSafeHwnd()) {
 		CRect rSetup;
 		pBtnSetup->GetWindowRect(&rSetup);
@@ -300,7 +300,7 @@ void CAutoMoveDlg::AlignControls()
 		nTopAreaBottom = max(nTopAreaBottom, rAllStop.bottom);
 	}
 
-	// 3. ë“œë¼ì´ë¸Œ ìš©ëŸ‰ Progress Bar ì˜ì—­ ì •ë ¬
+	// 3. µå¶óÀÌºê ¿ë·® Progress Bar ¿µ¿ª Á¤·Ä
 	int nListTop = nTopAreaBottom + SECTION_GAP;
 	if (pDriveUsageGroup != nullptr && pDriveUsageGroup->GetSafeHwnd())
 	{
@@ -334,7 +334,7 @@ void CAutoMoveDlg::AlignControls()
 		nListTop += nGroupHeight + DRIVE_USAGE_BOTTOM_GAP;
 	}
 
-	// 4. Picture Control ë° ìŠ¤í¬ë¡¤ë·° ì˜ì—­ ì—…ë°ì´íŠ¸
+	// 4. Picture Control ¹× ½ºÅ©·Ñºä ¿µ¿ª ¾÷µ¥ÀÌÆ®
 	if (pPic && pPic->GetSafeHwnd()) {
 		CRect rPic;
 		pPic->GetWindowRect(&rPic);
@@ -342,10 +342,10 @@ void CAutoMoveDlg::AlignControls()
 		rPic.left = LEFT_MARGIN;
 		rPic.top = nListTop;
 
-		// ìš°ì¸¡ ë ë§ˆì§„ì— ë§ê²Œ ë„ˆë¹„ ì¡°ì ˆ
+		// ¿ìÃø ³¡ ¸¶Áø¿¡ ¸Â°Ô ³Êºñ Á¶Àı
 		int newPicWidth = cx - rPic.left - RIGHT_MARGIN;
 
-		// í•˜ë‹¨ ë ë§ˆì§„ì— ë§ê²Œ ë†’ì´ ì¡°ì ˆ
+		// ÇÏ´Ü ³¡ ¸¶Áø¿¡ ¸Â°Ô ³ôÀÌ Á¶Àı
 		int newPicHeight = rectClient.Height() - rPic.top - BOTTOM_MARGIN;
 		pPic->MoveWindow(rPic.left, rPic.top, newPicWidth, newPicHeight);
 
@@ -366,7 +366,7 @@ void CAutoMoveDlg::OnBnClickedBtSystemOpen()
 
 void CAutoMoveDlg::OnCancel()
 {
-	// ì„ì˜ë¡œ ì¢…ë£Œ ë°©ì§€
+	// ÀÓÀÇ·Î Á¾·á ¹æÁö
 }
 
 void CAutoMoveDlg::OnTimer(UINT_PTR nIDEvent)
@@ -418,13 +418,13 @@ LRESULT CAutoMoveDlg::OnPathItemStateChanged(WPARAM wParam, LPARAM lParam)
 
 void CAutoMoveDlg::SetTrayIcon()
 {
-	// íŠ¸ë ˆì´ ì•„ì´ì½˜ ì„¤ì •
+	// Æ®·¹ÀÌ ¾ÆÀÌÄÜ ¼³Á¤
 	m_nId.cbSize = sizeof(NOTIFYICONDATA);
 	m_nId.hWnd = m_hWnd;
 	m_nId.uID = 1; 
 	m_nId.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	m_nId.uCallbackMessage = WM_TRAY_ICON; 
-	m_nId.hIcon = m_hIcon; // ì•„ì´ì½˜ í•¸ë“¤
+	m_nId.hIcon = m_hIcon; // ¾ÆÀÌÄÜ ÇÚµé
 	_tcscpy_s(m_nId.szTip, _T("AutoMove")); 
 	Shell_NotifyIcon(NIM_ADD, &m_nId);
 }
@@ -935,13 +935,13 @@ BOOL CAutoMoveDlg::IsScheduleDayMatched(const CString& strScheduleDays, WORD wDa
 	}
 
 	static constexpr LPCTSTR arrKoreanDays[] = {
-		_T("ì¼"), _T("ì›”"), _T("í™”"), _T("ìˆ˜"), _T("ëª©"), _T("ê¸ˆ"), _T("í† ")
+		_T("ÀÏ"), _T("¿ù"), _T("È­"), _T("¼ö"), _T("¸ñ"), _T("±İ"), _T("Åä")
 	};
 	static constexpr LPCTSTR arrEnglishDays[] = {
 		_T("Sun"), _T("Mon"), _T("Tue"), _T("Wed"), _T("Thu"), _T("Fri"), _T("Sat")
 	};
 
-	if (strDays.Find(_T("ë§¤ì¼")) >= 0
+	if (strDays.Find(_T("¸ÅÀÏ")) >= 0
 		|| strDays.CompareNoCase(_T("Daily")) == 0
 		|| strDays.CompareNoCase(_T("Everyday")) == 0
 		|| strDays.Find(_T("All")) >= 0)
@@ -1020,7 +1020,7 @@ LRESULT CAutoMoveDlg::OnDriveTaskFinished(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-// íŠ¸ë ˆì´ ì•„ì´ì½˜ ë©”ì‹œì§€ ì²˜ë¦¬
+// Æ®·¹ÀÌ ¾ÆÀÌÄÜ ¸Ş½ÃÁö Ã³¸®
 LRESULT CAutoMoveDlg::OnTrayIcon(WPARAM wParam, LPARAM lParam) {
 	if (lParam == WM_RBUTTONUP) { 
 		CMenu menu, * pSubMenu;
@@ -1030,11 +1030,11 @@ LRESULT CAutoMoveDlg::OnTrayIcon(WPARAM wParam, LPARAM lParam) {
 		CPoint pt;
 		GetCursorPos(&pt);
 
-		// íŠ¸ë ˆì´ ë©”ë‰´ ë™ì‘ì„ ìœ„í•œ í•„ìˆ˜ ì„¤ì •
+		// Æ®·¹ÀÌ ¸Ş´º µ¿ÀÛÀ» À§ÇÑ ÇÊ¼ö ¼³Á¤
 		SetForegroundWindow();
 		pSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
 	}
-	else if (lParam == WM_LBUTTONDBLCLK) { // ë”ë¸” í´ë¦­ ì‹œ í™”ë©´ ì—´ê¸°
+	else if (lParam == WM_LBUTTONDBLCLK) { // ´õºí Å¬¸¯ ½Ã È­¸é ¿­±â
 		SendMessage(WM_COMMAND, ID_TRAY_OPEN);
 	}
 	return 0;
@@ -1049,7 +1049,7 @@ void CAutoMoveDlg::OnTrayOpen()
 
 void CAutoMoveDlg::OnTrayExit()
 {
-	Shell_NotifyIcon(NIM_DELETE, &m_nId); // ì¤‘ìš”: ì¢…ë£Œ ì‹œ ì•„ì´ì½˜ ì œê±°
+	Shell_NotifyIcon(NIM_DELETE, &m_nId); // Áß¿ä: Á¾·á ½Ã ¾ÆÀÌÄÜ Á¦°Å
 	OnBnClickedMainExit();
 }
 
@@ -1057,16 +1057,16 @@ void CAutoMoveDlg::OnBnClickedBtnMainAllStart()
 {
 	if (!EnsureDriveTaskWorkerStarted())
 	{
-		MessageBox(_T("Drive task worker could not be started."),
-			_T("Task Worker"), MB_OK | MB_ICONERROR);
+		MessageBox(_T("ÀÛ¾÷ ½º·¹µå¸¦ ½ÃÀÛÇÒ ¼ö ¾ø½À´Ï´Ù."),
+			_T("ÀÛ¾÷ ½ÇÇà"), MB_OK | MB_ICONERROR);
 		return;
 	}
 
 	const int nQueuedCount = EnqueueTriggeredDriveTasks(m_vecDriveInfos);
 
 	CString strMessage;
-	strMessage.Format(_T("Queued triggered tasks: %d"), nQueuedCount);
-	MessageBox(strMessage, _T("Task Worker"), MB_OK | MB_ICONINFORMATION);
+	strMessage.Format(_T("½ÇÇà Á¶°ÇÀ» ¸¸Á·ÇØ ´ë±â¿­¿¡ µî·ÏµÈ ÀÛ¾÷ ¼ö: %d"), nQueuedCount);
+	MessageBox(strMessage, _T("ÀÛ¾÷ ½ÇÇà"), MB_OK | MB_ICONINFORMATION);
 }
 
 void CAutoMoveDlg::OnBnClickedBtnMainAllStop()

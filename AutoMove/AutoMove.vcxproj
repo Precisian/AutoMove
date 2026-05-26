@@ -187,11 +187,13 @@
     <ClInclude Include="AutoMoveDlg.h" />
     <ClInclude Include="Manager\CDriveManager.h" />
     <ClInclude Include="Manager\CDriveTaskWorker.h" />
+    <ClInclude Include="Manager\FileSystemUtil.h" />
     <ClInclude Include="CParameter.h" />
     <ClInclude Include="CPathItem.h" />
     <ClInclude Include="CListScrollView.h" />
     <ClInclude Include="CSetupDlg.h" />
     <ClInclude Include="CSetupItem.h" />
+    <ClInclude Include="CTestDlg.h" />
     <ClInclude Include="Dialog\CDriveUsageItem.h" />
     <ClInclude Include="DriveInfo.h" />
     <ClInclude Include="framework.h" />
@@ -204,11 +206,13 @@
     <ClCompile Include="AutoMoveDlg.cpp" />
     <ClCompile Include="Manager\CDriveManager.cpp" />
     <ClCompile Include="Manager\CDriveTaskWorker.cpp" />
+    <ClCompile Include="Manager\FileSystemUtil.cpp" />
     <ClCompile Include="CParameter.cpp" />
     <ClCompile Include="CPathItem.cpp" />
     <ClCompile Include="CListScrollView.cpp" />
     <ClCompile Include="CSetupDlg.cpp" />
     <ClCompile Include="CSetupItem.cpp" />
+    <ClCompile Include="CTestDlg.cpp" />
     <ClCompile Include="Dialog\CDriveUsageItem.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

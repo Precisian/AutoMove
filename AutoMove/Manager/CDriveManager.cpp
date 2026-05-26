@@ -1,9 +1,11 @@
 #include "pch.h"
 #include "CDriveManager.h"
+#include "FileSystemUtil.h"
 #include <algorithm>
 
 namespace
 {
+	using namespace AutoMoveFileSystem;
 	struct FILE_SYSTEM_ITEM
 	{
 		CString strPath;
@@ -51,119 +53,10 @@ namespace
 		WIN32_FIND_DATA m_findData = {};
 	};
 
-	CString NormalizeDirectoryPath(CString strPath)
-	{
-		strPath.Trim();
-
-		while (strPath.GetLength() > 3
-			&& (strPath.Right(1) == _T("\\") || strPath.Right(1) == _T("/")))
-		{
-			strPath = strPath.Left(strPath.GetLength() - 1);
-		}
-
-		return strPath;
-	}
-
-	CString CombinePath(const CString& strParent, const CString& strName)
-	{
-		CString strPath = strParent;
-		if (!strPath.IsEmpty()
-			&& strPath.Right(1) != _T("\\")
-			&& strPath.Right(1) != _T("/"))
-		{
-			strPath += _T("\\");
-		}
-
-		strPath += strName;
-		return strPath;
-	}
-
-	CString BuildSearchPath(const CString& strDirectory)
-	{
-		return CombinePath(strDirectory, _T("*"));
-	}
-
-	CString GetFileNameFromPath(CString strPath)
-	{
-		strPath = NormalizeDirectoryPath(strPath);
-		const int nBackslash = strPath.ReverseFind(_T('\\'));
-		const int nSlash = strPath.ReverseFind(_T('/'));
-		const int nSeparator = max(nBackslash, nSlash);
-		if (nSeparator < 0)
-		{
-			return strPath;
-		}
-
-		return strPath.Mid(nSeparator + 1);
-	}
-
-	BOOL IsDots(const CString& strName)
-	{
-		return strName == _T(".") || strName == _T("..");
-	}
-
-	BOOL IsReparsePoint(const WIN32_FIND_DATA& findData)
-	{
-		return (findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
-	}
-
-	BOOL IsDirectory(const DWORD dwAttributes)
-	{
-		return (dwAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-	}
-
-	BOOL IsReparsePoint(const DWORD dwAttributes)
-	{
-		return (dwAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
-	}
-
 	BOOL IsValidCleanupRoot(const CString& strPath)
 	{
-		const DWORD dwAttributes = GetFileAttributes(strPath);
-		return dwAttributes != INVALID_FILE_ATTRIBUTES
-			&& IsDirectory(dwAttributes)
-			&& !IsReparsePoint(dwAttributes);
+		return IsValidDirectoryPath(strPath);
 	}
-
-	BOOL IsValidDirectoryPath(const CString& strPath)
-	{
-		const DWORD dwAttributes = GetFileAttributes(strPath);
-		return dwAttributes != INVALID_FILE_ATTRIBUTES && IsDirectory(dwAttributes);
-	}
-
-	BOOL EnsureDirectoryExists(const CString& strDirectory)
-	{
-		CString strPath = NormalizeDirectoryPath(strDirectory);
-		if (strPath.IsEmpty())
-		{
-			return FALSE;
-		}
-
-		if (IsValidDirectoryPath(strPath))
-		{
-			return TRUE;
-		}
-
-		const int nBackslash = strPath.ReverseFind(_T('\\'));
-		const int nSlash = strPath.ReverseFind(_T('/'));
-		const int nSeparator = max(nBackslash, nSlash);
-		if (nSeparator > 2)
-		{
-			const CString strParent = strPath.Left(nSeparator);
-			if (!EnsureDirectoryExists(strParent))
-			{
-				return FALSE;
-			}
-		}
-
-		if (CreateDirectory(strPath, nullptr))
-		{
-			return TRUE;
-		}
-
-		return GetLastError() == ERROR_ALREADY_EXISTS && IsValidDirectoryPath(strPath);
-	}
-
 	FILE_SYSTEM_ITEM MakeFileSystemItem(const CString& strParent,
 		const WIN32_FIND_DATA& findData, int nDepth)
 	{
@@ -575,21 +468,8 @@ int CDriveManager::GetDriveUsagePercent(LPCTSTR lpszDriveName)
 
 CString CDriveManager::BuildDriveRootPath(const CString& strDriveName) const
 {
-	CString strRoot = strDriveName;
-	strRoot.Trim();
-
-	if (strRoot.GetLength() == 1)
-	{
-		strRoot.Format(_T("%c:\\"), strRoot[0]);
-	}
-	else if (strRoot.GetLength() == 2 && strRoot[1] == _T(':'))
-	{
-		strRoot += _T("\\");
-	}
-
-	return strRoot;
+	return AutoMoveFileSystem::BuildDriveRootPath(strDriveName);
 }
-
 int CDriveManager::CalculateUsagePercent(const ULARGE_INTEGER& totalBytes, const ULARGE_INTEGER& totalFreeBytes) const
 {
 	if (totalBytes.QuadPart == 0)
@@ -660,10 +540,25 @@ std::vector<CString> CDriveFileManager::FindMoveItems(CString strPath)
 	return vecResult;
 }
 
+void CDriveFileManager::RemovePath(const CString& strPath)
+{
+	CLowImpactDeleteContext deleteContext;
+	CString strTargetPath = strPath;
+	strTargetPath.Trim();
+	if (!strTargetPath.IsEmpty())
+	{
+		deleteContext.DeletePath(strTargetPath);
+	}
+}
+
+void CDriveFileManager::MovePath(const CString& strPath, const CString& strDestPath)
+{
+	MovePathToDirectory(strPath, strDestPath);
+}
+
 void CDriveFileManager::RemoveFiles(const std::vector<CString>& vecFilePaths)
 {
 	CLowImpactDeleteContext deleteContext;
-
 	for (int i = 0; i < static_cast<int>(vecFilePaths.size()); ++i)
 	{
 		CString strPath = vecFilePaths[i];
@@ -681,6 +576,6 @@ void CDriveFileManager::MoveFiles(const std::vector<CString>& vecFilePaths, cons
 {
 	for (int i = 0; i < static_cast<int>(vecFilePaths.size()); ++i)
 	{
-		MovePathToDirectory(vecFilePaths[i], strDestPath);
+		MovePath(vecFilePaths[i], strDestPath);
 	}
 }

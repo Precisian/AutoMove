@@ -33,6 +33,9 @@
     <ClInclude Include="Manager\CDriveTaskWorker.h">
       <Filter>Manager</Filter>
     </ClInclude>
+    <ClInclude Include="Manager\FileSystemUtil.h">
+      <Filter>Manager</Filter>
+    </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -60,6 +63,9 @@
     <ClInclude Include="CSetupItem.h">
       <Filter>Dialog</Filter>
     </ClInclude>
+    <ClInclude Include="CTestDlg.h">
+      <Filter>Dialog</Filter>
+    </ClInclude>
     <ClInclude Include="DriveInfo.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -80,6 +86,9 @@
     <ClCompile Include="Manager\CDriveTaskWorker.cpp">
       <Filter>Manager</Filter>
     </ClCompile>
+    <ClCompile Include="Manager\FileSystemUtil.cpp">
+      <Filter>Manager</Filter>
+    </ClCompile>
     <ClCompile Include="pch.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -96,6 +105,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="CSetupItem.cpp">
+      <Filter>Dialog</Filter>
+    </ClCompile>
+    <ClCompile Include="CTestDlg.cpp">
       <Filter>Dialog</Filter>
     </ClCompile>
     <ClCompile Include="Dialog\CDriveUsageItem.cpp">

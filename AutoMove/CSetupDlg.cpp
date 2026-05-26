@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "CSetupDlg.h"
 #include "CSetupItem.h"
+#include "CTestDlg.h"
 #include "Manager/CDriveManager.h"
 
 namespace
@@ -190,14 +191,8 @@ void CSetupDlg::OnBnClickedCheckAutoStart()
 
 void CSetupDlg::OnBnClickedBtnSetupTestStart()
 {
-	CString strErrorMessage;
-	if (!SaveControlsToParameter(strErrorMessage))
-	{
-		MessageBox(strErrorMessage, _T("Test Failed"), MB_OK | MB_ICONWARNING);
-		return;
-	}
-
-	MessageBox(BuildSimulationReport(m_param.m_vecTemplate), _T("Simulation Test"), MB_OK | MB_ICONINFORMATION);
+	CTestDlg dlg(this);
+	dlg.DoModal();
 }
 
 void CSetupDlg::LoadParameterToControls()
@@ -372,134 +367,4 @@ void CSetupDlg::SetAllTemplateBootStart(BOOL bBootStart)
 			pItem->SetBootStart(bBootStart);
 		}
 	}
-}
-CString CSetupDlg::BuildSimulationReport(const std::vector<CParameter::PARAM_TEMPLATE>& vecTemplate) const
-{
-	CString strReport;
-	strReport.Format(_T("Simulation Test\r\nTemplates: %d\r\n\r\n"), static_cast<int>(vecTemplate.size()));
-
-	std::vector<CString> vecCompletedDriveNames;
-	int nRunCount = 0;
-	int nSkipCount = 0;
-
-	for (int i = 0; i < static_cast<int>(vecTemplate.size()); ++i)
-	{
-		const CParameter::PARAM_TEMPLATE& paramTemplate = vecTemplate[i];
-		const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
-		const CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
-		const int nLimitValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE));
-		const int nEndValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
-		const int nUsagePercent = GetTemplateDriveUsagePercent(paramTemplate);
-
-		CString strLine;
-		if (IsSimulatedDriveCompleted(vecCompletedDriveNames, strDriveName))
-		{
-			strLine.Format(_T("%d. [%s] SKIP - %s drive already reached end condition.\r\n"),
-				i + 1,
-				static_cast<LPCTSTR>(paramTemplate.strName),
-				static_cast<LPCTSTR>(strDriveName));
-			++nSkipCount;
-		}
-		else if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)
-		{
-			strLine.Format(_T("%d. [%s] CHECK - schedule condition cannot be proven in this storage test.\r\n"),
-				i + 1,
-				static_cast<LPCTSTR>(paramTemplate.strName));
-			++nSkipCount;
-		}
-		else if (nUsagePercent < 0)
-		{
-			strLine.Format(_T("%d. [%s] SKIP - %s drive usage could not be checked.\r\n"),
-				i + 1,
-				static_cast<LPCTSTR>(paramTemplate.strName),
-				static_cast<LPCTSTR>(strDriveName));
-			++nSkipCount;
-		}
-		else if (nUsagePercent < nLimitValue)
-		{
-			strLine.Format(_T("%d. [%s] SKIP - %s drive usage %d%% is below trigger %d%%.\r\n"),
-				i + 1,
-				static_cast<LPCTSTR>(paramTemplate.strName),
-				static_cast<LPCTSTR>(strDriveName),
-				nUsagePercent,
-				nLimitValue);
-			++nSkipCount;
-		}
-		else if (nUsagePercent <= nEndValue)
-		{
-			strLine.Format(_T("%d. [%s] COMPLETE - %s drive usage %d%% is already at/below end %d%%.\r\n"),
-				i + 1,
-				static_cast<LPCTSTR>(paramTemplate.strName),
-				static_cast<LPCTSTR>(strDriveName),
-				nUsagePercent,
-				nEndValue);
-			MarkSimulatedDriveCompleted(vecCompletedDriveNames, strDriveName);
-			++nSkipCount;
-		}
-		else
-		{
-			strLine.Format(_T("%d. [%s] RUN - %s drive usage %d%% triggered at %d%%. Simulated completion marks this drive done.\r\n"),
-				i + 1,
-				static_cast<LPCTSTR>(paramTemplate.strName),
-				static_cast<LPCTSTR>(strDriveName),
-				nUsagePercent,
-				nLimitValue);
-			MarkSimulatedDriveCompleted(vecCompletedDriveNames, strDriveName);
-			++nRunCount;
-		}
-
-		strReport += strLine;
-	}
-
-	CString strSummary;
-	strSummary.Format(_T("\r\nSummary: RUN %d, SKIP/CHECK %d\r\nNo files were moved or deleted."),
-		nRunCount,
-		nSkipCount);
-	strReport += strSummary;
-	return strReport;
-}
-
-int CSetupDlg::GetTemplateDriveUsagePercent(const CParameter::PARAM_TEMPLATE& paramTemplate) const
-{
-	CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
-	strDriveName.Trim();
-	if (strDriveName.IsEmpty())
-	{
-		return -1;
-	}
-
-	return CDriveManager::GetDriveUsagePercent(strDriveName);
-
-}
-
-BOOL CSetupDlg::IsSimulatedDriveCompleted(const std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const
-{
-	CString strDriveNameValue = strDriveName;
-	strDriveNameValue.Trim();
-	if (strDriveNameValue.IsEmpty())
-	{
-		return FALSE;
-	}
-
-	for (int i = 0; i < static_cast<int>(vecCompletedDriveNames.size()); ++i)
-	{
-		if (vecCompletedDriveNames[i].CompareNoCase(strDriveNameValue) == 0)
-		{
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
-void CSetupDlg::MarkSimulatedDriveCompleted(std::vector<CString>& vecCompletedDriveNames, const CString& strDriveName) const
-{
-	CString strDriveNameValue = strDriveName;
-	strDriveNameValue.Trim();
-	if (strDriveNameValue.IsEmpty() || IsSimulatedDriveCompleted(vecCompletedDriveNames, strDriveNameValue))
-	{
-		return;
-	}
-
-	vecCompletedDriveNames.push_back(strDriveNameValue);
 }

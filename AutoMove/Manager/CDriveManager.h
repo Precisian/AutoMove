@@ -28,6 +28,8 @@ public:
 	// Returns cleanup work items ordered oldest-first. Folder items are bottom-up.
 	std::vector<CString> FindFiles(CString strPath);
 	std::vector<CString> FindMoveItems(CString strPath);
+	void RemovePath(const CString& strPath);
+	void MovePath(const CString& strPath, const CString& strDestPath);
 	void RemoveFiles(const std::vector<CString>& vecFilePaths);
 	void MoveFiles(const std::vector<CString>& vecFilePaths, const CString& strDestPath);
 };

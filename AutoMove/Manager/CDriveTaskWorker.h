@@ -2,6 +2,7 @@
 
 #include <afxmt.h>
 #include <deque>
+#include <vector>
 
 constexpr UINT WM_DRIVE_TASK_STARTED = WM_APP + 20;
 constexpr UINT WM_DRIVE_TASK_FINISHED = WM_APP + 21;
@@ -58,19 +59,30 @@ public:
 	BOOL IsWorking(HWND hPathItemWnd) const;
 
 private:
+	struct TASK_MATCH_KEY
+	{
+		HWND hPathItemWnd = nullptr;
+		CString strTemplateName;
+	};
+
 	static UINT ThreadProc(LPVOID pParam);
 	UINT Run();
 
 	BOOL PopTask(DRIVE_TASK& task);
 	void ResetQueueEventIfEmpty();
 	void ClearQueue();
+	BOOL CancelTask(const TASK_MATCH_KEY& key);
+	TASK_MATCH_KEY MakeTaskMatchKey(HWND hPathItemWnd) const;
+	TASK_MATCH_KEY MakeTaskMatchKey(LPCTSTR lpszTemplateName) const;
+	BOOL MatchesTask(const DRIVE_TASK& task, const TASK_MATCH_KEY& key) const;
+	BOOL MatchesWorkingTask(const TASK_MATCH_KEY& key) const;
+	BOOL HasQueuedTask(const TASK_MATCH_KEY& key) const;
 	void NotifyStarted(const DRIVE_TASK& task) const;
 	void NotifyFinished(const DRIVE_TASK& task, DRIVE_TASK_RESULT eResult, LPCTSTR lpszMessage) const;
+	void NotifyCanceledTasks(const std::vector<DRIVE_TASK>& vecCanceledTasks) const;
 	DRIVE_TASK_RESULT ExecuteTask(const DRIVE_TASK& task, CString& strMessage);
 	BOOL ShouldCancelCurrent() const;
 	BOOL HasReachedEndUsage(const DRIVE_TASK& task) const;
-	BOOL IsSamePathItem(const DRIVE_TASK& task, HWND hPathItemWnd) const;
-	BOOL IsSameTemplate(const DRIVE_TASK& task, LPCTSTR lpszTemplateName) const;
 
 	HWND m_hOwnerWnd = nullptr;
 	CWinThread* m_pThread = nullptr;
