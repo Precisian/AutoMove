@@ -16,6 +16,9 @@
     <Filter Include="Dialog">
       <UniqueIdentifier>{841b0201-1182-4066-9366-df1cec9be163}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Manager">
+      <UniqueIdentifier>{d548eb8e-09f3-41fc-80db-b057b3ba2ae1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AutoMove.h">
@@ -26,6 +29,9 @@
     </ClInclude>
     <ClInclude Include="CDriveManager.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Manager\CLogManager.h">
+      <Filter>Manager</Filter>
     </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>헤더 파일</Filter>
@@ -70,6 +76,9 @@
     </ClCompile>
     <ClCompile Include="CDriveManager.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Manager\CLogManager.cpp">
+      <Filter>Manager</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
       <Filter>소스 파일</Filter>
