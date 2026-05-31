@@ -17,8 +17,8 @@ public:
 	void LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplate);
 	void SetPathName(LPCTSTR lpszPathName);
 	void SetEventText(LPCTSTR lpszEventText);
-	void SetWaitingEvent(BOOL bWaitingEvent);
-	void SetWorkingMoveCopy(BOOL bWorkingMoveCopy);
+	void SetWaitingEvent(BOOL bWaitingEvent, BOOL bNotifyStateChanged = TRUE);
+	void SetWorkingMoveCopy(BOOL bWorkingMoveCopy, BOOL bNotifyStateChanged = TRUE);
 	BOOL IsWaitingEvent() const;
 	BOOL IsWorkingMoveCopy() const;
 	void SetBlinkOn(BOOL bBlinkOn);

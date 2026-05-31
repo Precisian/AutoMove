@@ -48,18 +48,11 @@ public:
 	BOOL Save();
 
 	void AddTemplate(LPCTSTR lpszName);
-	void AddTemplateParam(LPCTSTR lpszName, LPCTSTR lpszKey, LPCTSTR lpszValue);
 	void ClearTemplate();
 
 	void SetIniPath(LPCTSTR lpszIniPath);
 	CString GetIniPath() const;
 
-	static CString GetTemplateValue(const PARAM_TEMPLATE& paramTemplate,
-		LPCTSTR lpszKey, LPCTSTR lpszDefault = _T(""));
-	static void SetTemplateValue(PARAM_TEMPLATE& paramTemplate,
-		LPCTSTR lpszKey, LPCTSTR lpszValue);
-	static void AddTemplateValue(PARAM_TEMPLATE& paramTemplate,
-		LPCTSTR lpszKey, const CString& strValue);
 	static BOOL IsScheduleLimitMode(const PARAM_TEMPLATE& paramTemplate);
 
 	// Parameter member variables

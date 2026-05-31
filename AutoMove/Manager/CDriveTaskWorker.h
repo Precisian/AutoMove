@@ -54,6 +54,7 @@ public:
 
 	BOOL Enqueue(const DRIVE_TASK& task);
 	BOOL Cancel(LPCTSTR lpszTemplateName);
+	int ClearPendingTasks();
 	BOOL IsQueued(LPCTSTR lpszTemplateName) const;
 	BOOL IsWorking(LPCTSTR lpszTemplateName) const;
 

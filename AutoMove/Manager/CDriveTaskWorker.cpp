@@ -1,17 +1,61 @@
 #include "pch.h"
 #include "CDriveTaskWorker.h"
 #include "CDriveManager.h"
+#include "CLogManager.h"
 #include "FileSystemUtil.h"
 #include <vector>
 
 namespace
 {
 	constexpr DWORD TASK_WAIT_TIMEOUT = 250;
+	constexpr DWORD TASK_STATUS_MINIMUM_DISPLAY_INTERVAL = 500;
 
 	BOOL IsStopRequested(HANDLE hStopEvent)
 	{
 		return hStopEvent != nullptr
 			&& WaitForSingleObject(hStopEvent, 0) == WAIT_OBJECT_0;
+	}
+
+	LPCTSTR GetTaskTypeName(DRIVE_TASK_TYPE eType)
+	{
+		return eType == DRIVE_TASK_TYPE::MoveFiles ? _T("move") : _T("delete");
+	}
+
+	LPCTSTR GetTaskResultName(DRIVE_TASK_RESULT eResult)
+	{
+		switch (eResult)
+		{
+		case DRIVE_TASK_RESULT::Completed:
+			return _T("completed");
+		case DRIVE_TASK_RESULT::Canceled:
+			return _T("canceled");
+		case DRIVE_TASK_RESULT::Failed:
+			return _T("failed");
+		default:
+			return _T("unknown");
+		}
+	}
+
+	void LogTaskStarted(const DRIVE_TASK& task)
+	{
+		CString strMessage;
+		strMessage.Format(_T("Task started. template=\"%s\", type=%s, origin=\"%s\", destination=\"%s\""),
+			static_cast<LPCTSTR>(task.strTemplateName),
+			GetTaskTypeName(task.eType),
+			static_cast<LPCTSTR>(task.strOriginPath),
+			static_cast<LPCTSTR>(task.strDestPath));
+		CLogManager::Write(CLogManager::LOG_OPERATION, strMessage);
+	}
+
+	void LogTaskFinished(const DRIVE_TASK& task, DRIVE_TASK_RESULT eResult, const CString& strDetail)
+	{
+		CString strMessage;
+		strMessage.Format(_T("Task finished. template=\"%s\", type=%s, result=%s, detail=\"%s\""),
+			static_cast<LPCTSTR>(task.strTemplateName),
+			GetTaskTypeName(task.eType),
+			GetTaskResultName(eResult),
+			static_cast<LPCTSTR>(strDetail));
+		CLogManager::Write(CLogManager::LOG_OPERATION, strMessage);
 	}
 }
 
@@ -127,6 +171,25 @@ BOOL CDriveTaskWorker::Cancel(LPCTSTR lpszTemplateName)
 	return CancelTask(lpszTemplateName);
 }
 
+int CDriveTaskWorker::ClearPendingTasks()
+{
+	int nTaskCount = 0;
+	{
+		CSingleLock queueLock(&m_csQueue, TRUE);
+		nTaskCount = static_cast<int>(m_queue.size());
+		m_queue.clear();
+		if (m_hQueueEvent != nullptr)
+		{
+			ResetEvent(m_hQueueEvent);
+		}
+	}
+
+	CString strMessage;
+	strMessage.Format(_T("Pending task queue cleared. count=%d"), nTaskCount);
+	CLogManager::Write(CLogManager::LOG_OPERATION, strMessage);
+	return nTaskCount;
+}
+
 BOOL CDriveTaskWorker::CancelTask(LPCTSTR lpszTemplateName)
 {
 	BOOL bCanceled = FALSE;
@@ -224,10 +287,19 @@ UINT CDriveTaskWorker::Run()
 				m_bCancelCurrent = FALSE;
 			}
 
+			LogTaskStarted(task);
 			NotifyStarted(task);
+			const ULONGLONG ullStartedTick = GetTickCount64();
 
 			CString strMessage;
 			const DRIVE_TASK_RESULT eResult = ExecuteTask(task, strMessage);
+			LogTaskFinished(task, eResult, strMessage);
+
+			const ULONGLONG ullElapsed = GetTickCount64() - ullStartedTick;
+			if (ullElapsed < TASK_STATUS_MINIMUM_DISPLAY_INTERVAL)
+			{
+				Sleep(static_cast<DWORD>(TASK_STATUS_MINIMUM_DISPLAY_INTERVAL - ullElapsed));
+			}
 			NotifyFinished(task, eResult, strMessage);
 
 			{
@@ -366,6 +438,25 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 		return DRIVE_TASK_RESULT::Failed;
 	}
 
+	DRIVE_TASK_RESULT eInterruptResult = DRIVE_TASK_RESULT::Completed;
+	const auto continueWork = [this, &task, &strMessage, &eInterruptResult]()
+	{
+		if (IsStopRequested(m_hStopEvent) || ShouldCancelCurrent())
+		{
+			strMessage = _T("작업이 취소되었습니다.");
+			eInterruptResult = DRIVE_TASK_RESULT::Canceled;
+			return FALSE;
+		}
+
+		if (HasReachedEndUsage(task))
+		{
+			strMessage = _T("종료 사용률 조건에 도달했습니다.");
+			return FALSE;
+		}
+
+		return TRUE;
+	};
+
 	const std::vector<CString> vecItems = task.eType == DRIVE_TASK_TYPE::MoveFiles
 		? driveFileManager.FindMoveItems(strOriginPath)
 		: driveFileManager.FindFiles(strOriginPath);
@@ -383,13 +474,20 @@ DRIVE_TASK_RESULT CDriveTaskWorker::ExecuteTask(const DRIVE_TASK& task, CString&
 			return DRIVE_TASK_RESULT::Completed;
 		}
 
-		if (task.eType == DRIVE_TASK_TYPE::MoveFiles)
+		const BOOL bSucceeded = task.eType == DRIVE_TASK_TYPE::MoveFiles
+			? driveFileManager.MovePath(vecItems[i], strDestPath, continueWork)
+			: driveFileManager.RemovePath(vecItems[i], continueWork);
+		if (!bSucceeded)
 		{
-			driveFileManager.MovePath(vecItems[i], strDestPath);
-		}
-		else
-		{
-			driveFileManager.RemovePath(vecItems[i]);
+			if (!strMessage.IsEmpty())
+			{
+				return eInterruptResult;
+			}
+
+			strMessage = task.eType == DRIVE_TASK_TYPE::MoveFiles
+				? _T("파일 이동 중 오류가 발생했습니다.")
+				: _T("파일 삭제 중 오류가 발생했습니다.");
+			return DRIVE_TASK_RESULT::Failed;
 		}
 
 		if (((i + 1) % 8) == 0)

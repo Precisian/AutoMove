@@ -1,4 +1,4 @@
-ï»¿// CPathItem.cpp: êµ¬í˜„ íŒŒì¼
+// CPathItem.cpp: ±¸Çö ÆÄÀÏ
 //
 
 #include "pch.h"
@@ -23,26 +23,26 @@ namespace
 
 	CString FormatTemplateEventText(const CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
-		const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
+		const CString& strLimitMode = paramTemplate.strLimitMode;
 		if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)
 		{
 			CString strEvent;
-			strEvent.Format(_T("%s %s ì´í›„"),
-				static_cast<LPCTSTR>(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS)),
-				static_cast<LPCTSTR>(FormatScheduleTime(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME))));
+			strEvent.Format(_T("%s %s ÀÌÈÄ"),
+				static_cast<LPCTSTR>(paramTemplate.strScheduleDays),
+				static_cast<LPCTSTR>(FormatScheduleTime(paramTemplate.strScheduleTime)));
 			return strEvent;
 		}
 
 		CString strEvent;
-		strEvent.Format(_T("%sì˜ ìš©ëŸ‰ì´ %s%% ì´ìƒ"),
-			static_cast<LPCTSTR>(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME)),
-			static_cast<LPCTSTR>(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE)));
+		strEvent.Format(_T("%sÀÇ ¿ë·®ÀÌ %s%% ÀÌ»ó"),
+			static_cast<LPCTSTR>(paramTemplate.strDriveName),
+			static_cast<LPCTSTR>(paramTemplate.strLimitValue));
 		return strEvent;
 	}
 }
 
 
-// CPathItem ëŒ€í™” ìƒì
+// CPathItem ´ëÈ­ »óÀÚ
 
 IMPLEMENT_DYNAMIC(CPathItem, CDialogEx)
 
@@ -79,7 +79,7 @@ void CPathItem::LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplate
 {
 	SetPathName(paramTemplate.strName);
 	SetEventText(FormatTemplateEventText(paramTemplate));
-	SetWaitingEvent(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::BOOT_START) == _T("1"));
+	SetWaitingEvent(paramTemplate.bBootStart);
 	RefreshActControl();
 }
 
@@ -100,7 +100,7 @@ void CPathItem::SetEventText(LPCTSTR lpszEventText)
 	RefreshEventText();
 }
 
-void CPathItem::SetWaitingEvent(BOOL bWaitingEvent)
+void CPathItem::SetWaitingEvent(BOOL bWaitingEvent, BOOL bNotifyStateChanged)
 {
 	if (m_bWaitingEvent == bWaitingEvent)
 	{
@@ -110,10 +110,13 @@ void CPathItem::SetWaitingEvent(BOOL bWaitingEvent)
 	m_bWaitingEvent = bWaitingEvent;
 	RefreshActControl();
 	UpdateButtons();
-	NotifyStateChanged();
+	if (bNotifyStateChanged)
+	{
+		NotifyStateChanged();
+	}
 }
 
-void CPathItem::SetWorkingMoveCopy(BOOL bWorkingMoveCopy)
+void CPathItem::SetWorkingMoveCopy(BOOL bWorkingMoveCopy, BOOL bNotifyStateChanged)
 {
 	if (m_bWorkingMoveCopy == bWorkingMoveCopy)
 	{
@@ -124,7 +127,10 @@ void CPathItem::SetWorkingMoveCopy(BOOL bWorkingMoveCopy)
 	SetEventRunningText(bWorkingMoveCopy);
 	RefreshActControl();
 	UpdateButtons();
-	NotifyStateChanged();
+	if (bNotifyStateChanged)
+	{
+		NotifyStateChanged();
+	}
 }
 
 BOOL CPathItem::IsWaitingEvent() const
@@ -176,7 +182,7 @@ END_MESSAGE_MAP()
 
 BOOL CPathItem::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
-	// í˜„ì¬ ì•„ì´í…œì—ì„œ ë§ˆìš°ìŠ¤ íœ  ì´ë²¤íŠ¸ ë¶€ëª¨ì—ê²Œ ì „ë‹¬
+	// ÇöÀç ¾ÆÀÌÅÛ¿¡¼­ ¸¶¿ì½º ÈÙ ÀÌº¥Æ® ºÎ¸ğ¿¡°Ô Àü´Ş
 	CWnd* pParent = GetParent();
 	if (pParent == nullptr)
 	{
@@ -195,8 +201,8 @@ void CPathItem::OnBnClickedPathitemStop()
 {
 	if (m_bWorkingMoveCopy)
 	{
-		const int nResult = MessageBox(_T("í˜„ì¬ ì§„í–‰ì¤‘ì¸ ì‘ì—…ì„ ì·¨ì†Œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?"),
-			_T("ì‘ì—… ì·¨ì†Œ í™•ì¸"), MB_YESNO | MB_ICONQUESTION);
+		const int nResult = MessageBox(_T("ÇöÀç ÁøÇàÁßÀÎ ÀÛ¾÷À» Ãë¼ÒÇÏ½Ã°Ú½À´Ï±î?"),
+			_T("ÀÛ¾÷ Ãë¼Ò È®ÀÎ"), MB_YESNO | MB_ICONQUESTION);
 		if (nResult != IDYES)
 		{
 			return;
@@ -284,11 +290,6 @@ COLORREF CPathItem::GetActColor() const
 {
 	if (m_bWorkingMoveCopy)
 	{
-		if (!m_bBlinkOn)
-		{
-			return RGB(235, 235, 235);
-		}
-
 		return RGB(0, 120, 215);
 	}
 
@@ -318,10 +319,10 @@ void CPathItem::RefreshActControl()
 void CPathItem::RefreshEventText()
 {
 	CString strEventText;
-	strEventText.Format(_T("ì´ë²¤íŠ¸: %s"), static_cast<LPCTSTR>(m_strEventText));
+	strEventText.Format(_T("ÀÌº¥Æ®: %s"), static_cast<LPCTSTR>(m_strEventText));
 	if (m_bEventRunningText)
 	{
-		strEventText += _T(" (ì‹¤í–‰ì¤‘)");
+		strEventText += _T(" (½ÇÇàÁß)");
 	}
 
 	CWnd* pEvent = GetDlgItem(IDC_STATIC_PATHITEM_EVENT);

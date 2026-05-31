@@ -47,6 +47,7 @@ public:
 	CParameter m_pParam;
 	BOOL m_bPathItemBlinkOn;
 	BOOL m_bPathItemBlinkTimerActive;
+	SYSTEMTIME m_scheduleMonitoringStartedAt = {};
 	std::vector<CString> m_vecAvailableDriveNames;
 	CWinThread* m_pDriveUsageThread;
 	HANDLE m_hDriveUsageStopEvent;
