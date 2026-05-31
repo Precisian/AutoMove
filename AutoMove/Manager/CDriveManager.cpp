@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "CDriveManager.h"
+#include "CLogManager.h"
 #include "FileSystemUtil.h"
 #include <algorithm>
 
@@ -54,6 +55,16 @@ namespace
 	BOOL IsValidCleanupRoot(const CString& strPath)
 	{
 		return IsValidDirectoryPath(strPath);
+	}
+
+	void LogOperationFailure(LPCTSTR lpszOperation, const CString& strPath, DWORD dwError)
+	{
+		CString strMessage;
+		strMessage.Format(_T("%s failed. path=\"%s\", error=%lu"),
+			lpszOperation,
+			static_cast<LPCTSTR>(strPath),
+			dwError);
+		CLogManager::Write(CLogManager::LOG_OPERATION, strMessage);
 	}
 	FILE_SYSTEM_ITEM MakeFileSystemItem(const CString& strParent,
 		const WIN32_FIND_DATA& findData)
@@ -167,11 +178,20 @@ namespace
 	class CLowImpactDeleteContext
 	{
 	public:
+		explicit CLowImpactDeleteContext(const CDriveFileManager::WORK_CONTINUE_CALLBACK& continueCallback = {})
+			: m_continueCallback(continueCallback)
+		{
+		}
+
 		BOOL DeletePath(const CString& strPath)
 		{
 			const DWORD dwAttributes = GetFileAttributes(strPath);
 			if (dwAttributes == INVALID_FILE_ATTRIBUTES || IsReparsePoint(dwAttributes))
 			{
+				const DWORD dwError = dwAttributes == INVALID_FILE_ATTRIBUTES
+					? GetLastError()
+					: ERROR_CANT_ACCESS_FILE;
+				LogOperationFailure(_T("Delete path"), strPath, dwError);
 				return FALSE;
 			}
 
@@ -184,10 +204,22 @@ namespace
 		}
 
 	private:
-		void PauseAfterWork()
+		BOOL CheckContinueAfterItem()
+		{
+			++m_nContinueCheckCount;
+			if ((m_nContinueCheckCount % 8) == 0 && m_continueCallback && !m_continueCallback())
+			{
+				m_bContinue = FALSE;
+			}
+
+			return m_bContinue;
+		}
+
+		BOOL PauseAfterWork()
 		{
 			++m_nWorkCount;
 			Sleep((m_nWorkCount % 8) == 0 ? 10 : 1);
+			return CheckContinueAfterItem();
 		}
 
 		BOOL ClearReadOnlyAttribute(const CString& strPath, DWORD dwAttributes)
@@ -197,7 +229,13 @@ namespace
 				return TRUE;
 			}
 
-			return SetFileAttributes(strPath, dwAttributes & ~FILE_ATTRIBUTE_READONLY);
+			if (!SetFileAttributes(strPath, dwAttributes & ~FILE_ATTRIBUTE_READONLY))
+			{
+				LogOperationFailure(_T("Clear read-only attribute"), strPath, GetLastError());
+				return FALSE;
+			}
+
+			return TRUE;
 		}
 
 		BOOL DeleteFilePath(const CString& strPath)
@@ -207,14 +245,21 @@ namespace
 				|| IsDirectory(dwAttributes)
 				|| IsReparsePoint(dwAttributes))
 			{
+				LogOperationFailure(_T("Delete file"), strPath, GetLastError());
 				return FALSE;
 			}
 
-			ClearReadOnlyAttribute(strPath, dwAttributes);
+			if (!ClearReadOnlyAttribute(strPath, dwAttributes))
+			{
+				return FALSE;
+			}
 
 			const BOOL bDeleted = DeleteFile(strPath);
-			PauseAfterWork();
-			return bDeleted;
+			if (!bDeleted)
+			{
+				LogOperationFailure(_T("Delete file"), strPath, GetLastError());
+			}
+			return PauseAfterWork() && bDeleted;
 		}
 
 		BOOL DeleteDirectoryTree(const CString& strRootPath)
@@ -222,8 +267,9 @@ namespace
 			std::vector<CString> vecDirectories;
 			std::vector<CString> vecStack;
 			vecStack.push_back(strRootPath);
+			BOOL bResult = TRUE;
 
-			while (!vecStack.empty())
+			while (!vecStack.empty() && m_bContinue)
 			{
 				const CString strDirectory = vecStack.back();
 				vecStack.pop_back();
@@ -232,6 +278,8 @@ namespace
 				CFindHandle find(BuildSearchPath(strDirectory));
 				if (!find.IsValid())
 				{
+					LogOperationFailure(_T("Enumerate delete directory"), strDirectory, GetLastError());
+					bResult = FALSE;
 					continue;
 				}
 
@@ -247,12 +295,13 @@ namespace
 					if (IsDirectory(findData.dwFileAttributes))
 					{
 						vecStack.push_back(strChildPath);
+						CheckContinueAfterItem();
 					}
 					else
 					{
-						DeleteFilePath(strChildPath);
+						bResult &= DeleteFilePath(strChildPath);
 					}
-				} while (find.MoveNext());
+				} while (find.MoveNext() && m_bContinue);
 			}
 
 			std::sort(vecDirectories.begin(), vecDirectories.end(),
@@ -261,8 +310,7 @@ namespace
 					return lhs.GetLength() > rhs.GetLength();
 				});
 
-			BOOL bResult = TRUE;
-			for (int i = 0; i < static_cast<int>(vecDirectories.size()); ++i)
+			for (int i = 0; i < static_cast<int>(vecDirectories.size()) && m_bContinue; ++i)
 			{
 				bResult &= RemoveDirectoryIfEmpty(vecDirectories[i]);
 			}
@@ -277,43 +325,60 @@ namespace
 				|| !IsDirectory(dwAttributes)
 				|| IsReparsePoint(dwAttributes))
 			{
+				LogOperationFailure(_T("Remove directory"), strPath, GetLastError());
 				return FALSE;
 			}
 
-			ClearReadOnlyAttribute(strPath, dwAttributes);
+			if (!ClearReadOnlyAttribute(strPath, dwAttributes))
+			{
+				return FALSE;
+			}
 
 			const BOOL bRemoved = RemoveDirectory(strPath);
-			PauseAfterWork();
-			return bRemoved;
+			if (!bRemoved)
+			{
+				LogOperationFailure(_T("Remove directory"), strPath, GetLastError());
+			}
+			return PauseAfterWork() && bRemoved;
 		}
 
 		CScopedBackgroundThreadPriority m_backgroundPriority;
+		CDriveFileManager::WORK_CONTINUE_CALLBACK m_continueCallback;
 		int m_nWorkCount = 0;
+		int m_nContinueCheckCount = 0;
+		BOOL m_bContinue = TRUE;
 	};
 
-	BOOL MovePathToDirectory(CString strPath, CString strDestPath)
+	BOOL MoveSinglePathToDirectory(CString strPath, CString strDestPath)
 	{
 		strPath.Trim();
 		strDestPath = NormalizeDirectoryPath(strDestPath);
 		if (strPath.IsEmpty() || strDestPath.IsEmpty())
 		{
+			LogOperationFailure(_T("Prepare move path"), strPath, ERROR_INVALID_PARAMETER);
 			return FALSE;
 		}
 
 		const DWORD dwAttributes = GetFileAttributes(strPath);
 		if (dwAttributes == INVALID_FILE_ATTRIBUTES || IsReparsePoint(dwAttributes))
 		{
+			const DWORD dwError = dwAttributes == INVALID_FILE_ATTRIBUTES
+				? GetLastError()
+				: ERROR_CANT_ACCESS_FILE;
+			LogOperationFailure(_T("Move path"), strPath, dwError);
 			return FALSE;
 		}
 
 		if (!EnsureDirectoryExists(strDestPath))
 		{
+			LogOperationFailure(_T("Create move destination"), strDestPath, GetLastError());
 			return FALSE;
 		}
 
 		const CString strFileName = GetFileNameFromPath(strPath);
 		if (strFileName.IsEmpty())
 		{
+			LogOperationFailure(_T("Prepare move path"), strPath, ERROR_INVALID_NAME);
 			return FALSE;
 		}
 
@@ -333,7 +398,165 @@ namespace
 			| FOF_RENAMEONCOLLISION
 			| FOF_SILENT;
 
-		return SHFileOperation(&fileOp) == 0 && !fileOp.fAnyOperationsAborted;
+		const int nResult = SHFileOperation(&fileOp);
+		if (nResult != 0 || fileOp.fAnyOperationsAborted)
+		{
+			const DWORD dwError = nResult != 0 ? static_cast<DWORD>(nResult) : ERROR_CANCELLED;
+			LogOperationFailure(_T("Move path"), strPath, dwError);
+			return FALSE;
+		}
+
+		return TRUE;
+	}
+
+	class CLowImpactMoveContext
+	{
+	public:
+		explicit CLowImpactMoveContext(const CDriveFileManager::WORK_CONTINUE_CALLBACK& continueCallback = {})
+			: m_continueCallback(continueCallback)
+		{
+		}
+
+		BOOL MovePath(const CString& strPath, const CString& strDestPath)
+		{
+			const DWORD dwAttributes = GetFileAttributes(strPath);
+			if (dwAttributes == INVALID_FILE_ATTRIBUTES || IsReparsePoint(dwAttributes))
+			{
+				const DWORD dwError = dwAttributes == INVALID_FILE_ATTRIBUTES
+					? GetLastError()
+					: ERROR_CANT_ACCESS_FILE;
+				LogOperationFailure(_T("Move path"), strPath, dwError);
+				return FALSE;
+			}
+
+			if (!IsDirectory(dwAttributes))
+			{
+				return MoveFilePath(strPath, strDestPath);
+			}
+
+			const CString strDirectoryName = GetFileNameFromPath(strPath);
+			const CString strTargetRoot = CombinePath(strDestPath, strDirectoryName);
+			if (!EnsureDirectoryExists(strTargetRoot))
+			{
+				LogOperationFailure(_T("Create move destination"), strTargetRoot, GetLastError());
+				return FALSE;
+			}
+
+			return MoveDirectoryTree(strPath, strTargetRoot);
+		}
+
+	private:
+		BOOL CheckContinueAfterItem()
+		{
+			++m_nContinueCheckCount;
+			if ((m_nContinueCheckCount % 8) == 0 && m_continueCallback && !m_continueCallback())
+			{
+				m_bContinue = FALSE;
+			}
+
+			return m_bContinue;
+		}
+
+		BOOL PauseAfterWork()
+		{
+			++m_nWorkCount;
+			Sleep((m_nWorkCount % 8) == 0 ? 10 : 1);
+			return CheckContinueAfterItem();
+		}
+
+		BOOL MoveFilePath(const CString& strPath, const CString& strDestPath)
+		{
+			const BOOL bMoved = MoveSinglePathToDirectory(strPath, strDestPath);
+			return PauseAfterWork() && bMoved;
+		}
+
+		BOOL MoveDirectoryTree(const CString& strSourceRoot, const CString& strTargetRoot)
+		{
+			std::vector<CString> vecSourceDirectories;
+			std::vector<CString> vecTargetDirectories;
+			vecSourceDirectories.push_back(strSourceRoot);
+			vecTargetDirectories.push_back(strTargetRoot);
+			BOOL bResult = TRUE;
+
+			for (int i = 0; i < static_cast<int>(vecSourceDirectories.size()) && m_bContinue; ++i)
+			{
+				const CString strSourceDirectory = vecSourceDirectories[i];
+				const CString strTargetDirectory = vecTargetDirectories[i];
+
+				CFindHandle find(BuildSearchPath(strSourceDirectory));
+				if (!find.IsValid())
+				{
+					LogOperationFailure(_T("Enumerate move directory"), strSourceDirectory, GetLastError());
+					bResult = FALSE;
+					continue;
+				}
+
+				do
+				{
+					const WIN32_FIND_DATA& findData = find.GetData();
+					if (ShouldSkipFindData(findData))
+					{
+						continue;
+					}
+
+					const CString strSourceChild = CombinePath(strSourceDirectory, findData.cFileName);
+					if (IsDirectory(findData.dwFileAttributes))
+					{
+						const CString strTargetChild = CombinePath(strTargetDirectory, findData.cFileName);
+						if (!EnsureDirectoryExists(strTargetChild))
+						{
+							LogOperationFailure(_T("Create move destination"), strTargetChild, GetLastError());
+							bResult = FALSE;
+							continue;
+						}
+
+						vecSourceDirectories.push_back(strSourceChild);
+						vecTargetDirectories.push_back(strTargetChild);
+						CheckContinueAfterItem();
+					}
+					else
+					{
+						bResult &= MoveFilePath(strSourceChild, strTargetDirectory);
+					}
+				} while (find.MoveNext() && m_bContinue);
+			}
+
+			for (int i = static_cast<int>(vecSourceDirectories.size()) - 1; i >= 0 && m_bContinue; --i)
+			{
+				const BOOL bRemoved = RemoveDirectory(vecSourceDirectories[i]);
+				if (!bRemoved)
+				{
+					LogOperationFailure(_T("Remove moved source directory"), vecSourceDirectories[i], GetLastError());
+				}
+				bResult &= PauseAfterWork() && bRemoved;
+			}
+
+			return bResult;
+		}
+
+		CScopedBackgroundThreadPriority m_backgroundPriority;
+		CDriveFileManager::WORK_CONTINUE_CALLBACK m_continueCallback;
+		int m_nWorkCount = 0;
+		int m_nContinueCheckCount = 0;
+		BOOL m_bContinue = TRUE;
+	};
+
+	BOOL MovePathToDirectory(CString strPath, CString strDestPath,
+		const CDriveFileManager::WORK_CONTINUE_CALLBACK& continueCallback = {})
+	{
+		strPath.Trim();
+		strDestPath = NormalizeDirectoryPath(strDestPath);
+		if (strPath.IsEmpty() || strDestPath.IsEmpty() || !EnsureDirectoryExists(strDestPath))
+		{
+			const DWORD dwError = strPath.IsEmpty() || strDestPath.IsEmpty()
+				? ERROR_INVALID_PARAMETER
+				: GetLastError();
+			LogOperationFailure(_T("Prepare move path"), strPath, dwError);
+			return FALSE;
+		}
+
+		CLowImpactMoveContext moveContext(continueCallback);
+		return moveContext.MovePath(strPath, strDestPath);
 	}
 }
 
@@ -490,20 +713,28 @@ std::vector<CString> CDriveFileManager::FindMoveItems(CString strPath)
 	return LoadTopLevelPaths(strPath);
 }
 
-void CDriveFileManager::RemovePath(const CString& strPath)
+BOOL CDriveFileManager::RemovePath(const CString& strPath)
 {
-	CLowImpactDeleteContext deleteContext;
-	CString strTargetPath = strPath;
-	strTargetPath.Trim();
-	if (!strTargetPath.IsEmpty())
-	{
-		deleteContext.DeletePath(strTargetPath);
-	}
+	return RemovePath(strPath, {});
 }
 
-void CDriveFileManager::MovePath(const CString& strPath, const CString& strDestPath)
+BOOL CDriveFileManager::RemovePath(const CString& strPath, const WORK_CONTINUE_CALLBACK& continueCallback)
 {
-	MovePathToDirectory(strPath, strDestPath);
+	CLowImpactDeleteContext deleteContext(continueCallback);
+	CString strTargetPath = strPath;
+	strTargetPath.Trim();
+	return !strTargetPath.IsEmpty() && deleteContext.DeletePath(strTargetPath);
+}
+
+BOOL CDriveFileManager::MovePath(const CString& strPath, const CString& strDestPath)
+{
+	return MovePath(strPath, strDestPath, {});
+}
+
+BOOL CDriveFileManager::MovePath(const CString& strPath, const CString& strDestPath,
+	const WORK_CONTINUE_CALLBACK& continueCallback)
+{
+	return MovePathToDirectory(strPath, strDestPath, continueCallback);
 }
 
 void CDriveFileManager::RemoveFiles(const std::vector<CString>& vecFilePaths)

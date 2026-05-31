@@ -24,24 +24,19 @@ public:
 		static constexpr LPCTSTR LIMIT_MODE_SCHEDULE = _T("Schedule");
 	};
 
-	enum TEMPLATE_RUNTIME_STATE
-	{
-		TEMPLATE_STATE_IDLE,
-		TEMPLATE_STATE_WAITING,
-		TEMPLATE_STATE_WORKING
-	};
-
-	struct PARAM_TEMPLATE_VALUE
-	{
-		CString strKey;
-		CString strValue;
-	};
-
 	struct PARAM_TEMPLATE
 	{
 		CString strName;
-		std::vector<PARAM_TEMPLATE_VALUE> vecValue;
-		TEMPLATE_RUNTIME_STATE eRuntimeState = TEMPLATE_STATE_IDLE;
+		CString strOriginPath;
+		CString strDestPath;
+		BOOL bEnableMove = FALSE;
+		BOOL bBootStart = FALSE;
+		CString strDriveName;
+		CString strLimitMode = TemplateKey::LIMIT_MODE_STORAGE;
+		CString strLimitValue;
+		CString strEndValue;
+		CString strScheduleDays;
+		CString strScheduleTime;
 		CString strLastScheduleRunDate;
 	};
 
@@ -53,18 +48,11 @@ public:
 	BOOL Save();
 
 	void AddTemplate(LPCTSTR lpszName);
-	void AddTemplateParam(LPCTSTR lpszName, LPCTSTR lpszKey, LPCTSTR lpszValue);
 	void ClearTemplate();
 
 	void SetIniPath(LPCTSTR lpszIniPath);
 	CString GetIniPath() const;
 
-	static CString GetTemplateValue(const PARAM_TEMPLATE& paramTemplate,
-		LPCTSTR lpszKey, LPCTSTR lpszDefault = _T(""));
-	static void SetTemplateValue(PARAM_TEMPLATE& paramTemplate,
-		LPCTSTR lpszKey, LPCTSTR lpszValue);
-	static void AddTemplateValue(PARAM_TEMPLATE& paramTemplate,
-		LPCTSTR lpszKey, const CString& strValue);
 	static BOOL IsScheduleLimitMode(const PARAM_TEMPLATE& paramTemplate);
 
 	// Parameter member variables

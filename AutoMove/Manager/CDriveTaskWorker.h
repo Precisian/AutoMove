@@ -53,30 +53,21 @@ public:
 	BOOL IsRunning() const;
 
 	BOOL Enqueue(const DRIVE_TASK& task);
-	BOOL Cancel(HWND hPathItemWnd);
 	BOOL Cancel(LPCTSTR lpszTemplateName);
-	BOOL IsQueued(HWND hPathItemWnd) const;
-	BOOL IsWorking(HWND hPathItemWnd) const;
+	int ClearPendingTasks();
+	BOOL IsQueued(LPCTSTR lpszTemplateName) const;
+	BOOL IsWorking(LPCTSTR lpszTemplateName) const;
 
 private:
-	struct TASK_MATCH_KEY
-	{
-		HWND hPathItemWnd = nullptr;
-		CString strTemplateName;
-	};
-
 	static UINT ThreadProc(LPVOID pParam);
 	UINT Run();
 
 	BOOL PopTask(DRIVE_TASK& task);
 	void ResetQueueEventIfEmpty();
 	void ClearQueue();
-	BOOL CancelTask(const TASK_MATCH_KEY& key);
-	TASK_MATCH_KEY MakeTaskMatchKey(HWND hPathItemWnd) const;
-	TASK_MATCH_KEY MakeTaskMatchKey(LPCTSTR lpszTemplateName) const;
-	BOOL MatchesTask(const DRIVE_TASK& task, const TASK_MATCH_KEY& key) const;
-	BOOL MatchesWorkingTask(const TASK_MATCH_KEY& key) const;
-	BOOL HasQueuedTask(const TASK_MATCH_KEY& key) const;
+	BOOL CancelTask(LPCTSTR lpszTemplateName);
+	BOOL MatchesTask(const DRIVE_TASK& task, LPCTSTR lpszTemplateName) const;
+	BOOL HasQueuedTask(LPCTSTR lpszTemplateName) const;
 	void NotifyStarted(const DRIVE_TASK& task) const;
 	void NotifyFinished(const DRIVE_TASK& task, DRIVE_TASK_RESULT eResult, LPCTSTR lpszMessage) const;
 	void NotifyCanceledTasks(const std::vector<DRIVE_TASK>& vecCanceledTasks) const;
@@ -93,7 +84,6 @@ private:
 	std::deque<DRIVE_TASK> m_queue;
 
 	mutable CCriticalSection m_csState;
-	HWND m_hWorkingPathItemWnd = nullptr;
 	CString m_strWorkingTemplateName;
 	BOOL m_bCancelCurrent = FALSE;
 };

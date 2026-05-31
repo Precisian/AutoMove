@@ -17,7 +17,7 @@ namespace
 {
 	constexpr UINT_PTR TIMER_PATHITEM_BLINK = 1;
 	constexpr UINT TIMER_PATHITEM_BLINK_INTERVAL = 1000;
-	constexpr DWORD DRIVE_USAGE_CHECK_INTERVAL = 60000;
+	constexpr DWORD DRIVE_USAGE_CHECK_INTERVAL = 10000;
 	constexpr int DRIVE_USAGE_GROUP_TOP_PADDING = 18;
 	constexpr int DRIVE_USAGE_GROUP_BOTTOM_PADDING = 8;
 	constexpr int DRIVE_USAGE_GROUP_INSET_X = 10;
@@ -140,6 +140,7 @@ BOOL CAutoMoveDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	EnableDynamicLayout(TRUE);
+	GetLocalTime(&m_scheduleMonitoringStartedAt);
 	SetTrayIcon();
 	m_pParam.Load();
 	LoadAvailableDriveNames();
@@ -231,6 +232,7 @@ void CAutoMoveDlg::OnBnClickedMainExit()
 	int ret = MessageBox(_T("프로그램을 종료하시겠습니까?"), _T("종료 확인"), MB_YESNO | MB_ICONQUESTION);
 	if (ret == IDYES)
 	{
+		Shell_NotifyIcon(NIM_DELETE, &m_nId);
 		KillTimer(TIMER_PATHITEM_BLINK);
 		m_driveTaskWorker.Stop();
 		StopDriveUsageThread();
@@ -360,6 +362,7 @@ void CAutoMoveDlg::OnBnClickedBtSystemOpen()
 	CSetupDlg dlg(this, &m_pParam);
 	if (dlg.DoModal() == IDOK)
 	{
+		m_driveTaskWorker.ClearPendingTasks();
 		ReloadPathItems();
 	}
 }
@@ -393,20 +396,16 @@ LRESULT CAutoMoveDlg::OnPathItemStateChanged(WPARAM wParam, LPARAM lParam)
 		{
 			if (pItem->IsWaitingEvent() && !pItem->IsWorkingMoveCopy())
 			{
-				if (!ShouldTriggerDriveTask(*pTemplate, m_vecDriveInfos))
-				{
-					pItem->SetWaitingEvent(FALSE);
-				}
-				else if (!EnqueueDriveTask(*pTemplate, pItem)
-					&& !m_driveTaskWorker.IsQueued(pItem->GetSafeHwnd())
-					&& !m_driveTaskWorker.IsWorking(pItem->GetSafeHwnd()))
+				if (ShouldTriggerDriveTask(*pTemplate, m_vecDriveInfos)
+					&& !EnqueueDriveTask(*pTemplate, pItem)
+					&& !m_driveTaskWorker.IsQueued(pTemplate->strName)
+					&& !m_driveTaskWorker.IsWorking(pTemplate->strName))
 				{
 					pItem->SetWaitingEvent(FALSE);
 				}
 			}
 			else if (!pItem->IsWaitingEvent() && !pItem->IsWorkingMoveCopy())
 			{
-				m_driveTaskWorker.Cancel(pItem->GetSafeHwnd());
 				m_driveTaskWorker.Cancel(pTemplate->strName);
 			}
 		}
@@ -813,11 +812,11 @@ DRIVE_TASK CAutoMoveDlg::BuildDriveTask(const CParameter::PARAM_TEMPLATE& paramT
 	DRIVE_TASK task;
 	task.hPathItemWnd = pPathItem != nullptr ? pPathItem->GetSafeHwnd() : nullptr;
 	task.strTemplateName = paramTemplate.strName;
-	task.strOriginPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH);
-	task.strDestPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH);
-	task.strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
-	task.nEndUsagePercent = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
-	task.eType = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE) == _T("1")
+	task.strOriginPath = paramTemplate.strOriginPath;
+	task.strDestPath = paramTemplate.strDestPath;
+	task.strDriveName = paramTemplate.strDriveName;
+	task.nEndUsagePercent = _ttoi(paramTemplate.strEndValue);
+	task.eType = paramTemplate.bEnableMove
 		? DRIVE_TASK_TYPE::MoveFiles
 		: DRIVE_TASK_TYPE::RemoveFiles;
 	return task;
@@ -835,8 +834,8 @@ void CAutoMoveDlg::ResetPathItemTaskState()
 		CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
 		if (pItem != nullptr)
 		{
-			pItem->SetWorkingMoveCopy(FALSE);
-			pItem->SetWaitingEvent(FALSE);
+			pItem->SetWorkingMoveCopy(FALSE, FALSE);
+			pItem->SetWaitingEvent(FALSE, FALSE);
 		}
 	}
 }
@@ -854,6 +853,11 @@ int CAutoMoveDlg::EnqueueTriggeredDriveTasks(const std::vector<DRIVE_INFO>& vecD
 		}
 
 		CPathItem* pItem = FindPathItemByTemplateName(paramTemplate.strName);
+		if (pItem == nullptr || !pItem->IsWaitingEvent() || pItem->IsWorkingMoveCopy())
+		{
+			continue;
+		}
+
 		if (EnqueueDriveTask(paramTemplate, pItem))
 		{
 			++nQueuedCount;
@@ -869,7 +873,9 @@ int CAutoMoveDlg::EnqueueTriggeredDriveTasks(const std::vector<DRIVE_INFO>& vecD
 
 BOOL CAutoMoveDlg::ShouldTriggerDriveTask(const CParameter::PARAM_TEMPLATE& paramTemplate, const std::vector<DRIVE_INFO>& vecDriveInfos) const
 {
-	const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
+	UNREFERENCED_PARAMETER(vecDriveInfos);
+
+	const CString& strLimitMode = paramTemplate.strLimitMode;
 	if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)
 	{
 		SYSTEMTIME now;
@@ -877,15 +883,15 @@ BOOL CAutoMoveDlg::ShouldTriggerDriveTask(const CParameter::PARAM_TEMPLATE& para
 		return ShouldTriggerScheduleTask(paramTemplate, now);
 	}
 
-	const CString strDriveName = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME);
-	const int nUsagePercent = CDriveManager::FindDriveUsagePercent(vecDriveInfos, strDriveName);
+	const CString& strDriveName = paramTemplate.strDriveName;
+	const int nUsagePercent = CDriveManager::GetDriveUsagePercent(strDriveName);
 	if (nUsagePercent < 0)
 	{
 		return FALSE;
 	}
 
-	const int nLimitValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE));
-	const int nEndValue = _ttoi(CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
+	const int nLimitValue = _ttoi(paramTemplate.strLimitValue);
+	const int nEndValue = _ttoi(paramTemplate.strEndValue);
 	return nLimitValue > 0
 		&& nEndValue > 0
 		&& nUsagePercent >= nLimitValue
@@ -901,13 +907,13 @@ BOOL CAutoMoveDlg::ShouldTriggerScheduleTask(const CParameter::PARAM_TEMPLATE& p
 		return FALSE;
 	}
 
-	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
+	const CString& strScheduleDays = paramTemplate.strScheduleDays;
 	if (!IsScheduleDayMatched(strScheduleDays, now.wDayOfWeek))
 	{
 		return FALSE;
 	}
 
-	const CString strScheduleTime = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME);
+	const CString& strScheduleTime = paramTemplate.strScheduleTime;
 	if (strScheduleTime.GetLength() != 4)
 	{
 		return FALSE;
@@ -922,6 +928,16 @@ BOOL CAutoMoveDlg::ShouldTriggerScheduleTask(const CParameter::PARAM_TEMPLATE& p
 
 	const int nNowMinutes = static_cast<int>(now.wHour) * 60 + static_cast<int>(now.wMinute);
 	const int nScheduleMinutes = nScheduleHour * 60 + nScheduleMinute;
+	if (GetScheduleRunDate(m_scheduleMonitoringStartedAt) == strToday)
+	{
+		const int nMonitoringStartedMinutes = static_cast<int>(m_scheduleMonitoringStartedAt.wHour) * 60
+			+ static_cast<int>(m_scheduleMonitoringStartedAt.wMinute);
+		if (nScheduleMinutes <= nMonitoringStartedMinutes)
+		{
+			return FALSE;
+		}
+	}
+
 	return nNowMinutes >= nScheduleMinutes;
 }
 
@@ -983,8 +999,8 @@ LRESULT CAutoMoveDlg::OnDriveTaskStarted(WPARAM wParam, LPARAM lParam)
 
 		if (pItem != nullptr)
 		{
-			pItem->SetWorkingMoveCopy(TRUE);
-			pItem->SetWaitingEvent(FALSE);
+			pItem->SetWorkingMoveCopy(TRUE, FALSE);
+			pItem->SetWaitingEvent(FALSE, FALSE);
 		}
 
 		delete pNotify;
@@ -1009,8 +1025,11 @@ LRESULT CAutoMoveDlg::OnDriveTaskFinished(WPARAM wParam, LPARAM lParam)
 
 		if (pItem != nullptr)
 		{
-			pItem->SetWorkingMoveCopy(FALSE);
-			pItem->SetWaitingEvent(FALSE);
+			pItem->SetWorkingMoveCopy(FALSE, FALSE);
+			if (pNotify->eResult != DRIVE_TASK_RESULT::Canceled)
+			{
+				pItem->SetWaitingEvent(TRUE, FALSE);
+			}
 		}
 
 		delete pNotify;
@@ -1049,7 +1068,6 @@ void CAutoMoveDlg::OnTrayOpen()
 
 void CAutoMoveDlg::OnTrayExit()
 {
-	Shell_NotifyIcon(NIM_DELETE, &m_nId); // 중요: 종료 시 아이콘 제거
 	OnBnClickedMainExit();
 }
 
@@ -1062,10 +1080,22 @@ void CAutoMoveDlg::OnBnClickedBtnMainAllStart()
 		return;
 	}
 
-	const int nQueuedCount = EnqueueTriggeredDriveTasks(m_vecDriveInfos);
+	int nWaitingCount = 0;
+	if (m_pScrollView != nullptr && m_pScrollView->GetSafeHwnd())
+	{
+		for (int i = 0; i < m_pScrollView->GetItemCount(); ++i)
+		{
+			CPathItem* pItem = dynamic_cast<CPathItem*>(m_pScrollView->GetItem(i));
+			if (pItem != nullptr && !pItem->IsWorkingMoveCopy())
+			{
+				pItem->SetWaitingEvent(TRUE);
+				++nWaitingCount;
+			}
+		}
+	}
 
 	CString strMessage;
-	strMessage.Format(_T("실행 조건을 만족해 대기열에 등록된 작업 수: %d"), nQueuedCount);
+	strMessage.Format(_T("작업 대기 상태로 등록된 항목 수: %d"), nWaitingCount);
 	MessageBox(strMessage, _T("작업 실행"), MB_OK | MB_ICONINFORMATION);
 }
 

@@ -12,5 +12,8 @@ namespace AutoMoveFileSystem
 	BOOL IsReparsePoint(DWORD dwAttributes);
 	BOOL IsReparsePoint(const WIN32_FIND_DATA& findData);
 	BOOL IsValidDirectoryPath(const CString& strPath);
+	BOOL IsFixedDrivePath(const CString& strPath);
+	BOOL IsSafeWorkRoot(const CString& strPath);
+	BOOL IsSameOrChildPath(const CString& strParentPath, const CString& strChildPath);
 	BOOL EnsureDirectoryExists(const CString& strDirectory);
 }

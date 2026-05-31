@@ -188,7 +188,6 @@
     <ClInclude Include="Manager\CDriveManager.h" />
     <ClInclude Include="Manager\CDriveTaskWorker.h" />
     <ClInclude Include="Manager\FileSystemUtil.h" />
-    <ClInclude Include="CDriveManager.h" />
     <ClInclude Include="Manager\CLogManager.h" />
     <ClInclude Include="CParameter.h" />
     <ClInclude Include="CPathItem.h" />
@@ -209,7 +208,6 @@
     <ClCompile Include="Manager\CDriveManager.cpp" />
     <ClCompile Include="Manager\CDriveTaskWorker.cpp" />
     <ClCompile Include="Manager\FileSystemUtil.cpp" />
-    <ClCompile Include="CDriveManager.cpp" />
     <ClCompile Include="Manager\CLogManager.cpp" />
     <ClCompile Include="CParameter.cpp" />
     <ClCompile Include="CPathItem.cpp" />

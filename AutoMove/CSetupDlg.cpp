@@ -3,12 +3,15 @@
 #include "CSetupItem.h"
 #include "CTestDlg.h"
 #include "Manager/CDriveManager.h"
+#include "Manager/FileSystemUtil.h"
 
 namespace
 {
 	constexpr LPCTSTR ERROR_DUPLICATE_NAME = _T("'%s' 항목의 이름이 중복되었습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_ORIGIN_PATH = _T("'%s' 항목의 대상경로가 비어 있습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_DEST_PATH = _T("'%s' 항목의 이동경로가 비어 있습니다.");
+	constexpr LPCTSTR ERROR_UNSAFE_ORIGIN_PATH = _T("'%s' 항목의 대상경로는 고정 드라이브의 안전한 하위 폴더여야 합니다.");
+	constexpr LPCTSTR ERROR_INVALID_DEST_PATH = _T("'%s' 항목의 이동경로는 대상경로와 같거나 서로의 하위 폴더일 수 없습니다.");
 	constexpr LPCTSTR ERROR_EMPTY_LIMIT_VALUE = _T("'%s' 항목의 용량 값이 비어 있습니다.");
 	constexpr LPCTSTR ERROR_INVALID_LIMIT_VALUE = _T("'%s' 항목의 용량 값은 1~100 사이의 숫자여야 합니다.");
 	constexpr LPCTSTR ERROR_EMPTY_END_VALUE = _T("'%s' 항목의 종료 용량 값이 비어 있습니다.");
@@ -23,7 +26,7 @@ namespace
 	{
 		for (int i = 0; i < static_cast<int>(vecTemplate.size()); ++i)
 		{
-			if (vecTemplate[i].strName == strName)
+			if (vecTemplate[i].strName.CompareNoCase(strName) == 0)
 			{
 				return true;
 			}
@@ -247,8 +250,6 @@ BOOL CSetupDlg::SaveControlsToParameter(CString& strErrorMessage)
 
 		BuildTemplateValidationErrors(paramTemplate, vecErrors);
 
-		CParameter::SetTemplateValue(paramTemplate, CParameter::TemplateKey::NAME, paramTemplate.strName);
-
 		m_param.m_vecTemplate.push_back(paramTemplate);
 	}
 
@@ -265,14 +266,14 @@ BOOL CSetupDlg::SaveControlsToParameter(CString& strErrorMessage)
 void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& paramTemplate, std::vector<CString>& vecErrors) const
 {
 	const CString strName = paramTemplate.strName;
-	const CString strOriginPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH);
-	const CString strDestPath = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH);
-	const CString strEnableMove = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE);
-	const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE);
-	const CString strLimitValue = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE);
-	const CString strEndValue = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE);
-	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
-	const CString strScheduleTime = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME);
+	const CString& strOriginPath = paramTemplate.strOriginPath;
+	const CString& strDestPath = paramTemplate.strDestPath;
+	const BOOL bEnableMove = paramTemplate.bEnableMove;
+	const CString& strLimitMode = paramTemplate.strLimitMode;
+	const CString& strLimitValue = paramTemplate.strLimitValue;
+	const CString& strEndValue = paramTemplate.strEndValue;
+	const CString& strScheduleDays = paramTemplate.strScheduleDays;
+	const CString& strScheduleTime = paramTemplate.strScheduleTime;
 	const BOOL bStorageMode = strLimitMode != CParameter::TemplateKey::LIMIT_MODE_SCHEDULE;
 	const bool bValidLimitValue = IsAllDigits(strLimitValue) && _ttoi(strLimitValue) >= 1 && _ttoi(strLimitValue) <= 100;
 	const bool bValidEndValue = IsAllDigits(strEndValue) && _ttoi(strEndValue) >= 1 && _ttoi(strEndValue) <= 100;
@@ -281,10 +282,20 @@ void CSetupDlg::BuildTemplateValidationErrors(const CParameter::PARAM_TEMPLATE& 
 	{
 		AddError(vecErrors, ERROR_EMPTY_ORIGIN_PATH, strName);
 	}
+	else if (!AutoMoveFileSystem::IsSafeWorkRoot(strOriginPath))
+	{
+		AddError(vecErrors, ERROR_UNSAFE_ORIGIN_PATH, strName);
+	}
 
-	if (strEnableMove == _T("1") && strDestPath.IsEmpty())
+	if (bEnableMove && strDestPath.IsEmpty())
 	{
 		AddError(vecErrors, ERROR_EMPTY_DEST_PATH, strName);
+	}
+	else if (bEnableMove
+		&& (AutoMoveFileSystem::IsSameOrChildPath(strOriginPath, strDestPath)
+			|| AutoMoveFileSystem::IsSameOrChildPath(strDestPath, strOriginPath)))
+	{
+		AddError(vecErrors, ERROR_INVALID_DEST_PATH, strName);
 	}
 
 	if (strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE)

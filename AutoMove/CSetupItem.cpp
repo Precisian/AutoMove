@@ -242,29 +242,27 @@ void CSetupItem::AlignControls()
 
 void CSetupItem::LoadFromTemplate(const CParameter::PARAM_TEMPLATE& paramTemplate)
 {
-	SetDlgItemText(IDC_EDIT_SETUPITEM_NAME, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::NAME, paramTemplate.strName));
-	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH));
-	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_DEST, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_NAME, paramTemplate.strName);
+	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, paramTemplate.strOriginPath);
+	SetDlgItemText(IDC_EDIT_SETUPITEM_PATH_DEST, paramTemplate.strDestPath);
 	CheckDlgButton(IDC_CK_SETUPITEM_ENABLEMOVE,
-		CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE, _T("0")) == _T("1") ? BST_CHECKED : BST_UNCHECKED);
+		paramTemplate.bEnableMove ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButton(IDC_CK_SETUPITEM_BOOTSTART,
-		CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::BOOT_START, _T("0")) == _T("1") ? BST_CHECKED : BST_UNCHECKED);
+		paramTemplate.bBootStart ? BST_CHECKED : BST_UNCHECKED);
 
-	const CString strLimitMode = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE, CParameter::TemplateKey::LIMIT_MODE_STORAGE);
 	CheckRadioButton(IDC_RADIO_SETUPITEM_LIMIT_STORAGE, IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE,
-		strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE ? IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE : IDC_RADIO_SETUPITEM_LIMIT_STORAGE);
+		paramTemplate.strLimitMode == CParameter::TemplateKey::LIMIT_MODE_SCHEDULE ? IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE : IDC_RADIO_SETUPITEM_LIMIT_STORAGE);
 
-	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE));
-	SetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, paramTemplate.strLimitValue);
+	SetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, paramTemplate.strEndValue);
 	UpdateDriveNameFromTargetPath();
 
-	const CString strScheduleDays = CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS);
 	CComboBox* pComboScheduleDays = (CComboBox*)GetDlgItem(IDC_COMBO_SETUPITEM_LIMIT_SCHEJULE_DAYS);
 	if (pComboScheduleDays != nullptr && pComboScheduleDays->GetSafeHwnd())
 	{
-		pComboScheduleDays->SelectString(-1, strScheduleDays);
+		pComboScheduleDays->SelectString(-1, paramTemplate.strScheduleDays);
 	}
-	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, CParameter::GetTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME));
+	SetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, paramTemplate.strScheduleTime);
 
 	UpdateLimitControls();
 	UpdateMoveControls();
@@ -278,11 +276,10 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	GetDlgItemText(IDC_EDIT_SETUPITEM_NAME, strValue);
 	strValue.Trim();
 	paramTemplate.strName = strValue;
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::NAME, strValue);
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_PATH_ORIGIN, strValue);
 	strValue.Trim();
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::ORIGIN_PATH, strValue);
+	paramTemplate.strOriginPath = strValue;
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_PATH_DEST, strValue);
 	strValue.Trim();
@@ -290,18 +287,15 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::DEST_PATH, strValue);
+	paramTemplate.strDestPath = strValue;
 
 	const BOOL bEnableMove = IsDlgButtonChecked(IDC_CK_SETUPITEM_ENABLEMOVE) == BST_CHECKED;
-	strValue = bEnableMove ? _T("1") : _T("0");
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::ENABLE_MOVE, strValue);
+	paramTemplate.bEnableMove = bEnableMove;
 
-	strValue = IsDlgButtonChecked(IDC_CK_SETUPITEM_BOOTSTART) == BST_CHECKED ? _T("1") : _T("0");
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::BOOT_START, strValue);
+	paramTemplate.bBootStart = IsDlgButtonChecked(IDC_CK_SETUPITEM_BOOTSTART) == BST_CHECKED;
 
 	const BOOL bScheduleMode = IsDlgButtonChecked(IDC_RADIO_SETUPITEM_LIMIT_SCHEDULE) == BST_CHECKED;
-	strValue = bScheduleMode ? CParameter::TemplateKey::LIMIT_MODE_SCHEDULE : CParameter::TemplateKey::LIMIT_MODE_STORAGE;
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_MODE, strValue);
+	paramTemplate.strLimitMode = bScheduleMode ? CParameter::TemplateKey::LIMIT_MODE_SCHEDULE : CParameter::TemplateKey::LIMIT_MODE_STORAGE;
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_VALUE, strValue);
 	strValue.Trim();
@@ -309,14 +303,14 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::LIMIT_VALUE, strValue);
+	paramTemplate.strLimitValue = strValue;
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_END_VALUE, strValue);
 	strValue.Trim();
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::END_VALUE, strValue);
+	paramTemplate.strEndValue = strValue;
 
 	UpdateDriveNameFromTargetPath();
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::DRIVE_NAME, m_strDriveName);
+	paramTemplate.strDriveName = m_strDriveName;
 
 	strValue.Empty();
 	if (bScheduleMode)
@@ -336,7 +330,7 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_DAYS, strValue);
+	paramTemplate.strScheduleDays = strValue;
 
 	GetDlgItemText(IDC_EDIT_SETUPITEM_LIMIT_SCHEJULE_TIME, strValue);
 	strValue.Trim();
@@ -344,7 +338,7 @@ void CSetupItem::SaveToTemplate(CParameter::PARAM_TEMPLATE& paramTemplate)
 	{
 		strValue.Empty();
 	}
-	CParameter::AddTemplateValue(paramTemplate, CParameter::TemplateKey::SCHEDULE_TIME, strValue);
+	paramTemplate.strScheduleTime = strValue;
 }
 
 void CSetupItem::OnBnClickedRadioLimitStorage()
